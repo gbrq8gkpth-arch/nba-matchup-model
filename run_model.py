@@ -88,17 +88,15 @@ def calculate_edges(players, defenses, games):
             for _, player in team_players.iterrows():
                 usage = player["USG_PCT"]
                 minutes = player["MIN"]
-                three_rate = player["FG3A"] / player["FGA"] if player["FGA"] > 0 else 0
 
                 def_edge = (opp_def_rating - league_def_rating_avg) * -1
                 pace_edge = (opp_pace - league_pace_avg)
 
                 edge_score = (
-                    (usage * 0.5) +
-                    (three_rate * 20 * 0.2) +
-                    (def_edge * 0.2) +
-                    (pace_edge * 0.1)
-                )
+    (usage * 0.6) +
+    (def_edge * 0.25) +
+    (pace_edge * 0.15)
+)
 
                 results.append({
                     "Player": player["PLAYER_NAME"],
