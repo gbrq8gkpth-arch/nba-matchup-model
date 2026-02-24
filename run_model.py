@@ -20,7 +20,29 @@ def get_today_games():
     scoreboard = scoreboardv2.ScoreboardV2(game_date=today)
     games = scoreboard.game_header.get_data_frame()
     return games[['HOME_TEAM_ID', 'VISITOR_TEAM_ID']]
+def get_player_playtypes():
+    pt = leaguedashptstats.LeagueDashPtStats(
+        season='2025-26',
+        per_mode_simple='PerGame',
+        season_type_all_star='Regular Season',
+        player_or_team='Player'
+    )
 
+    df = pt.get_data_frames()[0]
+
+    # Keep only key offensive play types
+    df = df[df["PLAY_TYPE"].isin([
+        "PRBallHandler",
+        "Isolation",
+        "Spotup",
+        "Postup"
+    ])]
+
+    return df[[
+        "PLAYER_NAME",
+        "PLAY_TYPE",
+        "POSS_PCT"
+    ]]
 # ----------------------------
 # GET PLAYER STATS (Starters approx via top minutes)
 # ----------------------------
