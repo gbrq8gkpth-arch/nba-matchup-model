@@ -30,7 +30,7 @@ def get_player_stats():
         season='2025-26',
         per_mode_detailed='PerGame'
     )
-    df = players.get_data_frame()
+    df = players.get_data_frames()[0]
 
     # Keep top minute players per team (approx starters)
     df = df.sort_values("MIN", ascending=False)
@@ -46,7 +46,7 @@ def get_team_defense():
         season='2025-26',
         measure_type_detailed_defense='Advanced'
     )
-    df = teams.get_data_frame()
+    df = teams.get_data_frames()[0]
     return df[['TEAM_ID', 'DEF_RATING', 'PACE']]
 
 # ----------------------------
