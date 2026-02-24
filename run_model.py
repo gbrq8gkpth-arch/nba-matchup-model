@@ -191,7 +191,8 @@ def main():
 
     print("Pulling team defense...")
     defenses = get_team_defense()
-
+    player_playtypes = get_player_playtypes()
+    team_playtype_def = get_team_playtype_defense()
     print("Calculating edges...")
     results = calculate_edges(players, defenses, games)
 
