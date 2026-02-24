@@ -21,28 +21,26 @@ def get_today_games():
     games = scoreboard.game_header.get_data_frame()
     return games[['HOME_TEAM_ID', 'VISITOR_TEAM_ID']]
 def get_player_playtypes():
-    pt = leaguedashptstats.LeagueDashPtStats(
-        season='2025-26',
-        per_mode_simple='PerGame',
-        season_type_all_star='Regular Season',
-        player_or_team='Player'
-    )
 
-    df = pt.get_data_frames()[0]
+    play_types = ["PRBallHandler", "Isolation", "Spotup", "Postup"]
 
-    # Keep only key offensive play types
-    df = df[df["PLAY_TYPE"].isin([
-        "PRBallHandler",
-        "Isolation",
-        "Spotup",
-        "Postup"
-    ])]
+    all_data = []
 
-    return df[[
-        "PLAYER_NAME",
-        "PLAY_TYPE",
-        "POSS_PCT"
-    ]]
+    for pt in play_types:
+        data = leaguedashptstats.LeagueDashPtStats(
+            season='2025-26',
+            per_mode_simple='PerGame',
+            season_type_all_star='Regular Season',
+            player_or_team='Player',
+            play_type=pt
+        )
+
+        df = data.get_data_frames()[0]
+        df["PLAY_TYPE"] = pt
+
+        all_data.append(df[["PLAYER_NAME", "POSS_PCT", "PLAY_TYPE"]])
+
+    return pd.concat(all_data)
 
 def get_team_playtype_defense():
     pt = leaguedashptstats.LeagueDashPtStats(
