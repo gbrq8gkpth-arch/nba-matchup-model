@@ -112,20 +112,28 @@ def calculate_edges(players, defenses, games):
 # ----------------------------
 # EMAIL REPORT
 # ----------------------------
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 def send_email(report_df):
     top5 = report_df.head(5)
 
-    body = "🔥 Top 5 Matchup Edges (Starters Only)\n\n"
+    body = "Top 5 Matchup Edges (Starters Only)\n\n"
 
-    for i, row in top5.iterrows():
+    for _, row in top5.iterrows():
         body += f"{row['Player']} — Edge Score: {row['Edge_Score']}\n"
 
-    message = f"Subject: NBA Matchup Report - {datetime.today().strftime('%b %d')}\n\n{body}"
+    msg = MIMEMultipart()
+    msg["From"] = EMAIL_ADDRESS
+    msg["To"] = RECIPIENT_EMAIL
+    msg["Subject"] = f"NBA Matchup Report - {datetime.today().strftime('%b %d')}"
+
+    msg.attach(MIMEText(body, "plain", "utf-8"))
 
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
         server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-        server.sendmail(EMAIL_ADDRESS, RECIPIENT_EMAIL, message)
+        server.sendmail(EMAIL_ADDRESS, RECIPIENT_EMAIL, msg.as_string())
 
 # ----------------------------
 # MAIN
