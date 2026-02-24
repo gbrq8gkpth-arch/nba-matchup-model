@@ -26,15 +26,26 @@ def get_today_games():
 # GET PLAYER STATS (Starters approx via top minutes)
 # ----------------------------
 def get_player_stats():
-    players = leaguedashplayerstats.LeagueDashPlayerStats(
+    # ADVANCED PLAYER STATS
+    players_adv = leaguedashplayerstats.LeagueDashPlayerStats(
         season='2025-26',
-        per_mode_detailed='PerGame'
+        per_mode_detailed='PerGame',
+        measure_type_detailed_defense='Advanced'
     )
-    df = players.get_data_frames()[0]
 
-    # Keep top minute players per team (approx starters)
-    df = df.sort_values("MIN", ascending=False)
-    starters = df.groupby("TEAM_ID").head(5)
+    adv_df = players_adv.get_data_frames()[0]
+
+    # Keep starters approximation (top 5 minutes per team)
+    adv_df = adv_df.sort_values("MIN", ascending=False)
+    starters = adv_df.groupby("TEAM_ID").head(5)
+
+    return starters[[
+        "PLAYER_NAME",
+        "TEAM_ID",
+        "MIN",
+        "USG_PCT",
+        "TS_PCT"
+    ]]
 
     return starters[['PLAYER_NAME', 'TEAM_ID', 'MIN', 'USG_PCT', 'FG3A', 'FGA']]
 
