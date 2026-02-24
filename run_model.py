@@ -43,6 +43,29 @@ def get_player_playtypes():
         "PLAY_TYPE",
         "POSS_PCT"
     ]]
+
+def get_team_playtype_defense():
+    pt = leaguedashptstats.LeagueDashPtStats(
+        season='2025-26',
+        per_mode_simple='PerGame',
+        season_type_all_star='Regular Season',
+        player_or_team='Team'
+    )
+
+    df = pt.get_data_frames()[0]
+
+    df = df[df["PLAY_TYPE"].isin([
+        "PRBallHandler",
+        "Isolation",
+        "Spotup",
+        "Postup"
+    ])]
+
+    return df[[
+        "TEAM_ID",
+        "PLAY_TYPE",
+        "PPP"
+    ]]
 # ----------------------------
 # GET PLAYER STATS (Starters approx via top minutes)
 # ----------------------------
