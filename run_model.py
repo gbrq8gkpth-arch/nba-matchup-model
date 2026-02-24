@@ -22,21 +22,26 @@ def get_today_games():
     return games[['HOME_TEAM_ID', 'VISITOR_TEAM_ID']]
 def get_player_playtypes():
 
-    play_types = ["PRBallHandler", "Isolation", "Spotup", "Postup"]
+    play_types = {
+        "PRBallHandler": "PRBallHandler",
+        "Isolation": "Isolation",
+        "Spotup": "Spotup",
+        "Postup": "Postup"
+    }
 
     all_data = []
 
-    for pt in play_types:
+    for label, pt_type in play_types.items():
         data = leaguedashptstats.LeagueDashPtStats(
             season='2025-26',
-            per_mode_simple='PerGame',
             season_type_all_star='Regular Season',
+            per_mode_simple='PerGame',
             player_or_team='Player',
-            play_type=pt
+            pt_measure_type=pt_type
         )
 
         df = data.get_data_frames()[0]
-        df["PLAY_TYPE"] = pt
+        df["PLAY_TYPE"] = label
 
         all_data.append(df[["PLAYER_NAME", "POSS_PCT", "PLAY_TYPE"]])
 
