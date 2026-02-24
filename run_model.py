@@ -17,7 +17,7 @@ RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
 # ----------------------------
 def get_today_games():
     today = datetime.today().strftime('%m/%d/%Y')
-    scoreboard = scoreboardv2.ScoreboardV2(game_date=today)
+    scoreboard = scoreboardv2.ScoreboardV2(game_date=today, timeout=60)
     games = scoreboard.game_header.get_data_frame()
     return games[['HOME_TEAM_ID', 'VISITOR_TEAM_ID']]
 def get_player_playtypes():
