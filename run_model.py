@@ -181,7 +181,12 @@ def calculate_edges(players, defenses, games):
         return results_df
 
     results_df = results_df.sort_values("Projected_Points", ascending=False)
-
+    # Keep top 3 projected players per team
+    results_df = (
+        results_df
+        .groupby("Team_ID", group_keys=False)
+        .apply(lambda x: x.sort_values("Projected_Points", ascending=False).head(3))
+    )
     return results_df
 
 
