@@ -76,14 +76,17 @@ def get_player_stats():
     df = df[df["MIN_SEASON"] > 15]
 
     return df[[
-        "PLAYER_NAME",
-        "PLAYER_ID",
-        "TEAM_ID",
-        "MIN_SEASON",
-        "PTS_SEASON",
-        "MIN_L10",
-        "PTS_L10"
-    ]]
+    "PLAYER_NAME",
+    "PLAYER_ID",
+    "TEAM_ID",
+    "MIN_SEASON",
+    "PTS_SEASON",
+    "MIN_L10",
+    "PTS_L10",
+    "USG_PCT",
+    "FGA",
+    "FG3A"
+]]
 
 def get_team_defense():
 
