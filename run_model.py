@@ -1,10 +1,10 @@
-    import os
-    import smtplib
-    import ssl
-    import pandas as pd
-    import numpy as np
-    from datetime import datetime
-    from nba_api.stats.endpoints import scoreboardv2, leaguedashplayerstats, leaguedashteamstats, leaguedashptstats
+import os
+import smtplib
+import ssl
+import pandas as pd
+import numpy as np
+from datetime import datetime
+from nba_api.stats.endpoints import scoreboardv2, leaguedashplayerstats, leaguedashteamstats, leaguedashptstats
     # ----------------------------
     # ENV VARIABLES
     # ----------------------------
