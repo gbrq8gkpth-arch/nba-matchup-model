@@ -101,35 +101,20 @@ def get_team_defense():
 
 def calculate_edges(players, defenses, games):
 
-    if games.empty:
-        print("No games found.")
-        return pd.DataFrame()
-
     results = []
 
     league_avg_def = defenses["DEF_RATING"].mean()
     league_avg_pace = defenses["PACE"].mean()
 
-    playing_teams = set(games["TEAM_ID"])
-
     for _, player in players.iterrows():
-
-        # Skip players not playing today
-        if player["TEAM_ID"] not in playing_teams:
-            continue
 
         # Skip injured players
         if player["PLAYER_NAME"] in OUT_PLAYERS:
             continue
 
-        # Get opponent defense (average of teams not player's team)
-        opp_def = defenses[defenses["TEAM_ID"] != player["TEAM_ID"]]
-
-        if opp_def.empty:
-            continue
-
-        opp_def_rating = opp_def["DEF_RATING"].mean()
-        opp_pace = opp_def["PACE"].mean()
+        # Get opponent defensive averages (simple version)
+        opp_def_rating = defenses["DEF_RATING"].mean()
+        opp_pace = defenses["PACE"].mean()
 
         # --- Blended Minutes ---
         projected_min = (
@@ -143,8 +128,8 @@ def calculate_edges(players, defenses, games):
         else:
             pts_per_min = 0
 
-        # --- Usage Adjustment ---
-        usage = player.get("USG_PCT", 20)  # default 20 if missing
+        # --- Usage Adjustment (safe default if missing) ---
+        usage = player.get("USG_PCT", 20)
         usage_factor = usage / 20
         usage_multiplier = 0.7 + (usage_factor * 0.3)
 
@@ -171,7 +156,7 @@ def calculate_edges(players, defenses, games):
     if results_df.empty:
         return results_df
 
-    # Sort
+    # Sort by projection
     results_df = results_df.sort_values("Projected_Points", ascending=False)
 
     # Keep top 3 per team
