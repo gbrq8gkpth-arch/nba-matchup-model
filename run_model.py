@@ -14,7 +14,11 @@ print("Script started...")
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
-
+# Manual injury override list
+OUT_PLAYERS = [
+    "Stephen Curry",
+    "Shai Gilgeous-Alexander"
+]
 
 def get_today_games():
     today = datetime.today().strftime('%m/%d/%Y')
@@ -107,6 +111,8 @@ def calculate_edges(players, defenses, games):
     playing_teams = set(games["teamId"])
 
     for _, player in players.iterrows():
+        if player["PLAYER_NAME"] in OUT_PLAYERS:
+            continue
 
         if player["TEAM_ID"] not in playing_teams:
             continue
