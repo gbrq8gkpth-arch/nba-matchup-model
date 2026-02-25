@@ -92,7 +92,7 @@ def get_team_defense():
     )
 
     df = teams.get_data_frames()[0]
-
+    print(df.columns)
     return df[[
         "TEAM_ID",
         "DEF_RATING",
