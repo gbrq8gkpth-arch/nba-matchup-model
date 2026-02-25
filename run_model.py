@@ -190,7 +190,11 @@ def send_email(report_df):
         body = "Top 5 Matchup Edges\n\n"
 
         for _, row in top5.iterrows():
-            body += f"{row['Player']} — Projected Points: {row['Projected_Points']}\n"
+            body += (
+    f"{row['Player']} — "
+    f"Proj Pts: {row['Projected_Points']} | "
+    f"Proj Min: {row['Projected_Minutes']}\n"
+)
 
     msg = MIMEMultipart()
     msg["From"] = EMAIL_ADDRESS
