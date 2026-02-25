@@ -41,11 +41,11 @@ def get_player_stats():
 
     base_df = base.get_data_frames()[0]
 
-    # Advanced stats
+    # Advanced stats (USG_PCT lives here)
     advanced = leaguedashplayerstats.LeagueDashPlayerStats(
         season='2025-26',
         season_type_all_star='Regular Season',
-        measure_type_detailed='Advanced',
+        measure_type_detailed_defense='Advanced',
         per_mode_detailed='PerGame'
     )
 
@@ -57,7 +57,7 @@ def get_player_stats():
         on="PLAYER_ID"
     )
 
-    # Keep likely starters
+    # Likely starters
     starters = df[df["MIN"] > 20]
 
     return starters[[
