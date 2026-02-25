@@ -102,7 +102,7 @@ def calculate_edges(players, defenses, games):
     league_avg_def = defenses["DEF_RATING"].mean()
     league_avg_pace = defenses["PACE"].mean()
 
-    playing_teams = set(games["HOME_TEAM_ID"]).union(set(games["VISITOR_TEAM_ID"]))
+    playing_teams = set(games["teamId"])
 
     for _, player in players.iterrows():
 
