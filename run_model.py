@@ -31,25 +31,40 @@ def get_today_games():
 
 
 def get_player_stats():
-    players = leaguedashplayerstats.LeagueDashPlayerStats(
+
+    # Base stats
+    base = leaguedashplayerstats.LeagueDashPlayerStats(
         season='2025-26',
         season_type_all_star='Regular Season',
         per_mode_detailed='PerGame'
     )
 
-    df = players.get_data_frames()[0]
+    base_df = base.get_data_frames()[0]
 
-    # Keep high-minute players only (likely starters)
+    # Advanced stats
+    advanced = leaguedashplayerstats.LeagueDashPlayerStats(
+        season='2025-26',
+        season_type_all_star='Regular Season',
+        measure_type_detailed='Advanced',
+        per_mode_detailed='PerGame'
+    )
+
+    adv_df = advanced.get_data_frames()[0]
+
+    # Merge on PLAYER_ID
+    df = base_df.merge(
+        adv_df[["PLAYER_ID", "USG_PCT"]],
+        on="PLAYER_ID"
+    )
+
+    # Keep likely starters
     starters = df[df["MIN"] > 20]
 
     return starters[[
         "PLAYER_NAME",
         "TEAM_ID",
         "MIN",
-        "USG_PCT",
-        "PTS",
-        "FGA",
-        "FG3A"
+        "USG_PCT"
     ]]
 
 
