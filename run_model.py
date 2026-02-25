@@ -129,67 +129,80 @@ def calculate_edges(players, defenses, matchups):
 
     results = []
 
-    # League averages
-    league_avg_def = defenses["DEF_RATING"].mean()
-    league_avg_pace = defenses["PACE"].mean()
+    # --- MANUAL OUT LIST (names exactly as shown in PLAYER_NAME column) ---
+    OUT_PLAYERS = [
+        "Stephen Curry",
+        "Shai Gilgeous Alexander"
+    ]
+
+    # Normalize OUT list for safety
+    normalized_out = [
+        p.lower().replace("-", "").strip()
+        for p in OUT_PLAYERS
+    ]
+
+    # --- Only keep teams playing today ---
+    playing_teams = set(matchups["TEAM_ID"])
 
     for _, player in players.iterrows():
 
-        team_id = player["TEAM_ID"]
-
-        # Only include players whose teams are playing today
-        if team_id not in matchups:
+        # Skip if team not playing today
+        if player["TEAM_ID"] not in playing_teams:
             continue
 
-        opp_team_id = matchups[team_id]
-
-        # Get opponent defensive data
-        opp_def = defenses[defenses["TEAM_ID"] == opp_team_id]
-
-        if opp_def.empty:
+        # Skip if manually listed OUT
+        player_name_clean = player["PLAYER_NAME"].lower().replace("-", "").strip()
+        if player_name_clean in normalized_out:
             continue
 
-        opp_def_rating = opp_def.iloc[0]["DEF_RATING"]
-        opp_pace = opp_def.iloc[0]["PACE"]
-
-        # --- Minutes Projection ---
-        min_season = player.get("MIN_SEASON", 0)
-        min_l10 = player.get("MIN_L10", min_season)
-
-        projected_min = (min_season * 0.6) + (min_l10 * 0.4)
+        # --- Minutes Projection (blend season + last 10) ---
+        projected_min = (
+            (player["MIN_SEASON"] * 0.6) +
+            (player["MIN_L10"] * 0.4)
+        )
 
         # --- Points Per Minute ---
-        pts_season = player.get("PTS_SEASON", 0)
-
-        if min_season > 0:
-            pts_per_min = pts_season / min_season
+        if player["MIN_SEASON"] > 0:
+            pts_per_min = player["PTS_SEASON"] / player["MIN_SEASON"]
         else:
             pts_per_min = 0
 
-        # --- Base Projection ---
-        base_projection = projected_min * pts_per_min
-
-        # --- Controlled Adjustments ---
-        adjustment = 1.0
-
-        # Usage adjustment (max ±10%)
+        # --- Usage Adjustment ---
         usage = player.get("USG_PCT", 20)
-        usage_adj = min(max((usage - 20) / 100, -0.10), 0.10)
-        adjustment += usage_adj
+        usage_factor = usage / 20
+        usage_multiplier = 0.7 + (usage_factor * 0.3)
 
-        # Defense adjustment (max ±8%)
-        def_adj = min(max((league_avg_def - opp_def_rating) / 200, -0.08), 0.08)
-        adjustment += def_adj
+        adjusted_scoring_rate = pts_per_min * usage_multiplier
 
-        # Pace adjustment (max ±6%)
-        pace_adj = min(max((opp_pace - league_avg_pace) / 200, -0.06), 0.06)
-        adjustment += pace_adj
+        # --- Opponent Info ---
+        opponent = defenses[defenses["TEAM_ID"] == player["TEAM_ID"]]
+
+        if opponent.empty:
+            continue
+
+        opp_def_rating = opponent["DEF_RATING"].values[0]
+        opp_pace = opponent["PACE"].values[0]
+
+        league_avg_def = defenses["DEF_RATING"].mean()
+        league_avg_pace = defenses["PACE"].mean()
+
+        # --- Defense Adjustment ---
+        def_factor = league_avg_def / opp_def_rating if opp_def_rating > 0 else 1
+
+        # --- Pace Adjustment ---
+        pace_factor = opp_pace / league_avg_pace if league_avg_pace > 0 else 1
 
         # --- Final Projection ---
-        projected_points = base_projection * adjustment
+        projected_points = (
+            projected_min *
+            adjusted_scoring_rate *
+            def_factor *
+            pace_factor
+        )
 
         results.append({
             "Player": player["PLAYER_NAME"],
+            "Team_ID": player["TEAM_ID"],
             "Projected_Points": round(projected_points, 2),
             "Projected_Minutes": round(projected_min, 1)
         })
@@ -199,13 +212,10 @@ def calculate_edges(players, defenses, matchups):
     if results_df.empty:
         return results_df
 
-    results_df = results_df.sort_values(
-        by="Projected_Points",
-        ascending=False
-    ).head(5)
+    # Sort entire slate
+    results_df = results_df.sort_values("Projected_Points", ascending=False)
 
     return results_df
-
 
 def send_email(report_df):
 
