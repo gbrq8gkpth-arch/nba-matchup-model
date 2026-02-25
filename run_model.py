@@ -19,7 +19,11 @@ OUT_PLAYERS = [
     "Stephen Curry",
     "Shai Gilgeous-Alexander"
 ]
-
+# Star impact mapping (teams that lose high-minute players)
+STAR_IMPACT_TEAMS = {
+    "Stephen Curry": 1610612744,  # Warriors
+    "Shai Gilgeous-Alexander": 1610612760  # Thunder
+}
 def get_today_games():
     today = datetime.today().strftime('%m/%d/%Y')
 
@@ -125,6 +129,12 @@ def calculate_edges(players, defenses, games):
             (player["MIN_L10"] * 0.4)
         )
 
+        # Minutes boost if star teammate is OUT
+        for out_player in OUT_PLAYERS:
+            if out_player in STAR_IMPACT_TEAMS:
+                if player["TEAM_ID"] == STAR_IMPACT_TEAMS[out_player]:
+                    projected_min *= 1.08  # 8% boost
+        
         # --- Scoring Rates ---
         season_ppm = player["PTS_SEASON"] / player["MIN_SEASON"] if player["MIN_SEASON"] > 0 else 0
         l10_ppm = player["PTS_L10"] / player["MIN_L10"] if player["MIN_L10"] > 0 else 0
