@@ -56,15 +56,6 @@ def get_player_stats():
     )
     season_df = season.get_data_frames()[0]
 
-    # Tracking stats (shot profile)
-    tracking = leaguedashplayerstats.LeagueDashPlayerStats(
-        season='2025-26',
-        season_type_all_star='Regular Season',
-        measure_type_detailed_defense='Tracking',
-        per_mode_detailed='PerGame'
-    )
-    tracking_df = tracking.get_data_frames()[0]
-
     # Last 10 stats
     last10 = leaguedashplayerstats.LeagueDashPlayerStats(
         season='2025-26',
@@ -74,23 +65,10 @@ def get_player_stats():
     )
     last10_df = last10.get_data_frames()[0]
 
-    # Merge season + last10
     df = season_df.merge(
         last10_df[["PLAYER_ID", "MIN", "PTS"]],
         on="PLAYER_ID",
         suffixes=("_SEASON", "_L10")
-    )
-
-    # Merge tracking stats
-    df = df.merge(
-        tracking_df[[
-            "PLAYER_ID",
-            "CATCH_SHOOT_FGA",
-            "PULL_UP_FGA",
-            "DRIVES"
-        ]],
-        on="PLAYER_ID",
-        how="left"
     )
 
     # Keep rotation players
@@ -98,14 +76,12 @@ def get_player_stats():
 
     return df[[
         "PLAYER_NAME",
+        "PLAYER_ID",
         "TEAM_ID",
         "MIN_SEASON",
         "PTS_SEASON",
         "MIN_L10",
-        "PTS_L10",
-        "CATCH_SHOOT_FGA",
-        "PULL_UP_FGA",
-        "DRIVES"
+        "PTS_L10"
     ]]
 
 def get_team_defense():
