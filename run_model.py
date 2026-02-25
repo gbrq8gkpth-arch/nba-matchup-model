@@ -120,6 +120,8 @@ def calculate_edges(players, defenses, matchups):
 
     results = []
 
+    OUT_PLAYER_IDS = [1628983]
+
     # --- MANUAL OUT LIST (names exactly as shown in PLAYER_NAME column) ---
     OUT_PLAYERS = [
         "Stephen Curry",
@@ -136,7 +138,8 @@ def calculate_edges(players, defenses, matchups):
     playing_teams = set(matchups["TEAM_ID"])
 
     for _, player in players.iterrows():
-        
+        if player["PLAYER_ID"] in OUT_PLAYER_IDS:
+            continue
         print(player["PLAYER_NAME"], player["PLAYER_ID"])
 
         # Skip if team not playing today
