@@ -1,55 +1,58 @@
 import os
-import smtplib
 import ssl
+import smtplib
 import pandas as pd
-import numpy as np
 from datetime import datetime
+
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 from nba_api.stats.endpoints import scoreboardv3, leaguedashplayerstats, leaguedashteamstats
+
 print("Script started...")
-    # ----------------------------
-    # ENV VARIABLES
-    # ----------------------------
+
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
 
-    # ----------------------------
-    # GET TODAY'S GAMES
-    # ----------------------------
+
 def get_today_games():
     today = datetime.today().strftime('%m/%d/%Y')
-    print("Calling scoreboard...")
-    scoreboard = scoreboardv3.ScoreboardV3(game_date=today, timeout=60)
-    games = scoreboard.game_header.get_data_frame()
-    return games[['HOME_TEAM_ID', 'VISITOR_TEAM_ID']]
+
+    try:
+        print("Calling scoreboard...")
+        scoreboard = scoreboardv3.ScoreboardV3(game_date=today, timeout=10)
+        games_df = scoreboard.get_data_frames()[0]
+        print("Scoreboard pulled.")
+        return games_df
+    except Exception as e:
+        print("Scoreboard failed:", e)
+        return pd.DataFrame()
+
 
 def get_player_stats():
-    # ADVANCED PLAYER STATS
-    players_adv = leaguedashplayerstats.LeagueDashPlayerStats(
+    players = leaguedashplayerstats.LeagueDashPlayerStats(
         season='2025-26',
-        per_mode_detailed='PerGame',
-        measure_type_detailed_defense='Advanced'
+        season_type_all_star='Regular Season',
+        per_mode_detailed='PerGame'
     )
 
-    adv_df = players_adv.get_data_frames()[0]
+    df = players.get_data_frames()[0]
 
-    # Keep starters approximation (top 5 minutes per team)
-    adv_df = adv_df.sort_values("MIN", ascending=False)
-    starters = adv_df.groupby("TEAM_ID").head(5)
+    # Keep high-minute players only (likely starters)
+    starters = df[df["MIN"] > 20]
 
     return starters[[
         "PLAYER_NAME",
         "TEAM_ID",
         "MIN",
         "USG_PCT",
-        "TS_PCT"
+        "PTS",
+        "FGA",
+        "FG3A"
     ]]
 
-    return starters[['PLAYER_NAME', 'TEAM_ID', 'MIN', 'USG_PCT', 'FG3A', 'FGA']]
 
-    # ----------------------------
-    # GET TEAM DEFENSE
-    # ----------------------------
 def get_team_defense():
     teams = leaguedashteamstats.LeagueDashTeamStats(
         season='2025-26',
@@ -63,65 +66,81 @@ def get_team_defense():
         "DEF_RATING",
         "PACE"
     ]]
+
+
 def calculate_edges(players, defenses, games):
+
+    if games.empty:
+        print("No games found.")
+        return pd.DataFrame()
+
     results = []
 
-    league_def_rating_avg = defenses["DEF_RATING"].mean()
-    league_pace_avg = defenses["PACE"].mean()
+    league_avg_def = defenses["DEF_RATING"].mean()
+    league_avg_pace = defenses["PACE"].mean()
 
-    for _, game in games.iterrows():
-        home = game["HOME_TEAM_ID"]
-        away = game["VISITOR_TEAM_ID"]
+    playing_teams = set(games["HOME_TEAM_ID"]).union(set(games["VISITOR_TEAM_ID"]))
 
-        matchups = [(home, away), (away, home)]
+    for _, player in players.iterrows():
 
-        for team_id, opp_id in matchups:
-            team_players = players[players["TEAM_ID"] == team_id]
-            opp_def = defenses[defenses["TEAM_ID"] == opp_id]
+        if player["TEAM_ID"] not in playing_teams:
+            continue
 
-            if opp_def.empty:
-                continue
+        defense = defenses[defenses["TEAM_ID"] != player["TEAM_ID"]].mean()
 
-            opp_def_rating = opp_def["DEF_RATING"].values[0]
-            opp_pace = opp_def["PACE"].values[0]
+        usage = player["USG_PCT"]
+        minutes = player["MIN"]
 
-            for _, player in team_players.iterrows():
-                usage = player["USG_PCT"]
-                minutes = player["MIN"]
+        def_edge = league_avg_def - defense["DEF_RATING"]
+        pace_edge = defense["PACE"] - league_avg_pace
 
-                def_edge = (opp_def_rating - league_def_rating_avg) * -1
-                pace_edge = (opp_pace - league_pace_avg)
+        edge_score = (
+            (usage * 0.7) +
+            (def_edge * 0.2) +
+            (pace_edge * 0.1)
+        )
 
-                edge_score = (
-    (usage * 0.6) +
-    (def_edge * 0.25) +
-    (pace_edge * 0.15)
-    )
-
-                results.append({
-                    "Player": player["PLAYER_NAME"],
-                    "Team_ID": team_id,
-                    "Edge_Score": round(edge_score, 2)
-                })
+        results.append({
+            "Player": player["PLAYER_NAME"],
+            "Team_ID": player["TEAM_ID"],
+            "Edge_Score": edge_score
+        })
 
     results_df = pd.DataFrame(results)
+
+    if results_df.empty:
+        return results_df
+
     results_df = results_df.sort_values("Edge_Score", ascending=False)
+
+    # Normalize to 0–10 scale
+    min_score = results_df["Edge_Score"].min()
+    max_score = results_df["Edge_Score"].max()
+
+    if max_score != min_score:
+        results_df["Edge_Score"] = (
+            (results_df["Edge_Score"] - min_score) /
+            (max_score - min_score)
+        ) * 10
+    else:
+        results_df["Edge_Score"] = 5
+
+    results_df["Edge_Score"] = results_df["Edge_Score"].round(2)
 
     return results_df
 
-    # ----------------------------
-    # EMAIL REPORT
-    # ----------------------------
-    from email.mime.text import MIMEText
-    from email.mime.multipart import MIMEMultipart
 
 def send_email(report_df):
-    top5 = report_df.head(5)
 
-    body = "Top 5 Matchup Edges (Starters Only)\n\n"
+    if report_df.empty:
+        body = "No games or data available today."
+    else:
+        top5 = report_df.head(5)
 
-    for _, row in top5.iterrows():
-        body += f"{row['Player']} — Edge Score: {row['Edge_Score']}\n"
+        body = "Top 5 Matchup Edges\n\n"
+
+        for _, row in top5.iterrows():
+            body += f"{row['Player']} — Edge Score: {row['Edge_Score']}\n"
 
     msg = MIMEMultipart()
     msg["From"] = EMAIL_ADDRESS
@@ -131,13 +150,12 @@ def send_email(report_df):
     msg.attach(MIMEText(body, "plain", "utf-8"))
 
     context = ssl.create_default_context()
+
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
         server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
         server.sendmail(EMAIL_ADDRESS, RECIPIENT_EMAIL, msg.as_string())
 
-    # ----------------------------
-    # MAIN
-    # ----------------------------
+
 def main():
 
     print("Pulling today's slate...")
@@ -156,3 +174,7 @@ def main():
     send_email(results)
 
     print("Done.")
+
+
+if __name__ == "__main__":
+    main()
