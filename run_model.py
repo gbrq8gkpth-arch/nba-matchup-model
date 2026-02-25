@@ -8,9 +8,9 @@ from nba_api.stats.endpoints import scoreboardv2, leaguedashplayerstats, leagued
     # ----------------------------
     # ENV VARIABLES
     # ----------------------------
-    EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
-    EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-    RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
 
     # ----------------------------
     # GET TODAY'S GAMES
