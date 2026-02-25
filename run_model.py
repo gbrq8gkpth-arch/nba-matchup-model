@@ -7,7 +7,7 @@ from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-from nba_api.stats.endpoints import scoreboardv3, leaguedashplayerstats, leaguedashteamstats
+from nba_api.stats.endpoints import scoreboardv2, leaguedashplayerstats, leaguedashteamstats
 
 print("Script started...")
 
@@ -30,9 +30,7 @@ def get_today_games():
 
     scoreboard = scoreboardv2.ScoreboardV2(game_date=today, timeout=60)
 
-    games_df = scoreboard.get_data_frames()[0]
-
-    # Extract team IDs from line score table
+    # Line score table (contains TEAM_ID)
     line_score = scoreboard.get_data_frames()[1]
 
     playing_teams = line_score["TEAM_ID"].unique()
