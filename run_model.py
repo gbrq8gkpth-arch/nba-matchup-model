@@ -136,6 +136,8 @@ def calculate_edges(players, defenses, matchups):
     playing_teams = set(matchups["TEAM_ID"])
 
     for _, player in players.iterrows():
+        
+        print(player["PLAYER_NAME"], player["PLAYER_ID"])
 
         # Skip if team not playing today
         if player["TEAM_ID"] not in playing_teams:
