@@ -104,12 +104,18 @@ def get_team_defense():
         season='2025-26',
         measure_type_detailed_defense='Advanced'
     )
-    df = teams.get_data_frames()[0]
-    return df[['TEAM_ID', 'DEF_RATING', 'PACE']]
 
-# ----------------------------
-# EDGE CALCULATION
-# ----------------------------
+    df = teams.get_data_frames()[0]
+
+    return df[[
+        "TEAM_ID",
+        "DEF_RATING",
+        "PACE",
+        "OPP_FG3_PCT",
+        "OPP_FGA",
+        "OPP_FG3A",
+        "OPP_FG_PCT"
+    ]]
 def calculate_edges(players, defenses, games):
     results = []
 
