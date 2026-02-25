@@ -107,7 +107,7 @@ def get_team_defense():
 
     # Merge both on TEAM_ID
     df = adv_df.merge(
-        opp_df[["TEAM_ID", "OPP_FG3A"]],
+        opp_df[["TEAM_ID", "OPP_FG3A", "OPP_FG3_PCT"]],
         on="TEAM_ID",
         how="left"
     )
@@ -116,7 +116,8 @@ def get_team_defense():
         "TEAM_ID",
         "DEF_RATING",
         "PACE",
-        "OPP_FG3A"
+        "OPP_FG3A",
+        "OPP_FG3_PCT"
     ]]
 
 
