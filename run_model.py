@@ -83,7 +83,6 @@ def get_player_stats():
     "PTS_SEASON",
     "MIN_L10",
     "PTS_L10",
-    "USG_PCT",
     "FGA",
     "FG3A"
 ]]
