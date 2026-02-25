@@ -113,22 +113,28 @@ def calculate_edges(players, defenses, games):
 
         defense = defenses[defenses["TEAM_ID"] != player["TEAM_ID"]].mean()
 
-        usage = player["USG_PCT"]
-        minutes = player["MIN"]
-
-        def_edge = league_avg_def - defense["DEF_RATING"]
-        pace_edge = defense["PACE"] - league_avg_pace
-
-        edge_score = (
-            (usage * 0.7) +
-            (def_edge * 0.2) +
-            (pace_edge * 0.1)
+        # --- Blended Minutes ---
+        projected_min = (
+            (player["MIN_SEASON"] * 0.6) +
+            (player["MIN_L10"] * 0.4)
         )
+
+        # --- Scoring Rates ---
+        season_ppm = player["PTS_SEASON"] / player["MIN_SEASON"] if player["MIN_SEASON"] > 0 else 0
+        l10_ppm = player["PTS_L10"] / player["MIN_L10"] if player["MIN_L10"] > 0 else 0
+
+        blended_ppm = (season_ppm * 0.6) + (l10_ppm * 0.4)
+
+        # --- Matchup Adjustments ---
+        pace_multiplier = defense["PACE"] / league_avg_pace
+        defense_multiplier = league_avg_def / defense["DEF_RATING"]
+
+        projected_points = projected_min * blended_ppm * pace_multiplier * defense_multiplier
 
         results.append({
             "Player": player["PLAYER_NAME"],
             "Team_ID": player["TEAM_ID"],
-            "Edge_Score": edge_score
+            "Projected_Points": round(projected_points, 2)
         })
 
     results_df = pd.DataFrame(results)
@@ -136,21 +142,7 @@ def calculate_edges(players, defenses, games):
     if results_df.empty:
         return results_df
 
-    results_df = results_df.sort_values("Edge_Score", ascending=False)
-
-    # Normalize to 0–10 scale
-    min_score = results_df["Edge_Score"].min()
-    max_score = results_df["Edge_Score"].max()
-
-    if max_score != min_score:
-        results_df["Edge_Score"] = (
-            (results_df["Edge_Score"] - min_score) /
-            (max_score - min_score)
-        ) * 10
-    else:
-        results_df["Edge_Score"] = 5
-
-    results_df["Edge_Score"] = results_df["Edge_Score"].round(2)
+    results_df = results_df.sort_values("Projected_Points", ascending=False)
 
     return results_df
 
