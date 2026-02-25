@@ -1,77 +1,26 @@
-import os
-import smtplib
-import ssl
-import pandas as pd
-import numpy as np
-from datetime import datetime
-from nba_api.stats.endpoints import scoreboardv2, leaguedashplayerstats, leaguedashteamstats, leaguedashptstats
-# ----------------------------
-# ENV VARIABLES
-# ----------------------------
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
+    import os
+    import smtplib
+    import ssl
+    import pandas as pd
+    import numpy as np
+    from datetime import datetime
+    from nba_api.stats.endpoints import scoreboardv2, leaguedashplayerstats, leaguedashteamstats, leaguedashptstats
+    # ----------------------------
+    # ENV VARIABLES
+    # ----------------------------
+    EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
+    EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+    RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
 
-# ----------------------------
-# GET TODAY'S GAMES
-# ----------------------------
+    # ----------------------------
+    # GET TODAY'S GAMES
+    # ----------------------------
 def get_today_games():
     today = datetime.today().strftime('%m/%d/%Y')
     scoreboard = scoreboardv2.ScoreboardV2(game_date=today, timeout=60)
     games = scoreboard.game_header.get_data_frame()
     return games[['HOME_TEAM_ID', 'VISITOR_TEAM_ID']]
-def get_player_playtypes():
 
-    play_types = {
-        "PRBallHandler": "PRBallHandler",
-        "Isolation": "Isolation",
-        "Spotup": "Spotup",
-        "Postup": "Postup"
-    }
-
-    all_data = []
-
-    for label, pt_type in play_types.items():
-        data = leaguedashptstats.LeagueDashPtStats(
-            season='2025-26',
-            season_type_all_star='Regular Season',
-            per_mode_simple='PerGame',
-            player_or_team='Player',
-            pt_measure_type=pt_type
-        )
-
-        df = data.get_data_frames()[0]
-        df["PLAY_TYPE"] = label
-
-        all_data.append(df[["PLAYER_NAME", "POSS_PCT", "PLAY_TYPE"]])
-
-    return pd.concat(all_data)
-
-def get_team_playtype_defense():
-    pt = leaguedashptstats.LeagueDashPtStats(
-        season='2025-26',
-        per_mode_simple='PerGame',
-        season_type_all_star='Regular Season',
-        player_or_team='Team'
-    )
-
-    df = pt.get_data_frames()[0]
-
-    df = df[df["PLAY_TYPE"].isin([
-        "PRBallHandler",
-        "Isolation",
-        "Spotup",
-        "Postup"
-    ])]
-
-    return df[[
-        "TEAM_ID",
-        "PLAY_TYPE",
-        "PPP"
-    ]]
-# ----------------------------
-# GET PLAYER STATS (Starters approx via top minutes)
-# ----------------------------
 def get_player_stats():
     # ADVANCED PLAYER STATS
     players_adv = leaguedashplayerstats.LeagueDashPlayerStats(
@@ -96,47 +45,21 @@ def get_player_stats():
 
     return starters[['PLAYER_NAME', 'TEAM_ID', 'MIN', 'USG_PCT', 'FG3A', 'FGA']]
 
-# ----------------------------
-# GET TEAM DEFENSE
-# ----------------------------
+    # ----------------------------
+    # GET TEAM DEFENSE
+    # ----------------------------
 def get_team_defense():
-
-    # Advanced team defense
-    teams_adv = leaguedashteamstats.LeagueDashTeamStats(
+    teams = leaguedashteamstats.LeagueDashTeamStats(
         season='2025-26',
         measure_type_detailed_defense='Advanced'
     )
 
-    adv_df = teams_adv.get_data_frames()[0]
-
-    # Opponent shooting splits
-    teams_opp = leaguedashteamstats.LeagueDashTeamStats(
-        season='2025-26',
-        measure_type_detailed_defense='Opponent'
-    )
-
-    opp_df = teams_opp.get_data_frames()[0]
-
-    # Merge both
-    df = adv_df.merge(
-        opp_df[[
-            "TEAM_ID",
-            "OPP_FG_PCT",
-            "OPP_FG3_PCT",
-            "OPP_FG3A",
-            "OPP_FGA"
-        ]],
-        on="TEAM_ID"
-    )
+    df = teams.get_data_frames()[0]
 
     return df[[
         "TEAM_ID",
         "DEF_RATING",
-        "PACE",
-        "OPP_FG_PCT",
-        "OPP_FG3_PCT",
-        "OPP_FG3A",
-        "OPP_FGA"
+        "PACE"
     ]]
 def calculate_edges(players, defenses, games):
     results = []
@@ -171,7 +94,7 @@ def calculate_edges(players, defenses, games):
     (usage * 0.6) +
     (def_edge * 0.25) +
     (pace_edge * 0.15)
-)
+    )
 
                 results.append({
                     "Player": player["PLAYER_NAME"],
@@ -184,11 +107,11 @@ def calculate_edges(players, defenses, games):
 
     return results_df
 
-# ----------------------------
-# EMAIL REPORT
-# ----------------------------
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+    # ----------------------------
+    # EMAIL REPORT
+    # ----------------------------
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
 
 def send_email(report_df):
     top5 = report_df.head(5)
@@ -210,9 +133,9 @@ def send_email(report_df):
         server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
         server.sendmail(EMAIL_ADDRESS, RECIPIENT_EMAIL, msg.as_string())
 
-# ----------------------------
-# MAIN
-# ----------------------------
+    # ----------------------------
+    # MAIN
+    # ----------------------------
 def main():
 
     print("Pulling today's slate...")
