@@ -26,25 +26,18 @@ STAR_IMPACT_TEAMS = {
 }
 def get_today_games():
 
-    from nba_api.stats.endpoints import scoreboardv2
-    from datetime import datetime
-
     today = datetime.today().strftime('%m/%d/%Y')
 
     scoreboard = scoreboardv2.ScoreboardV2(game_date=today, timeout=60)
 
     games_df = scoreboard.get_data_frames()[0]
 
-    matchups = {}
+    # Extract team IDs from line score table
+    line_score = scoreboard.get_data_frames()[1]
 
-    for _, row in games_df.iterrows():
-        home = row["HOME_TEAM_ID"]
-        away = row["VISITOR_TEAM_ID"]
+    playing_teams = line_score["TEAM_ID"].unique()
 
-        matchups[home] = away
-        matchups[away] = home
-
-    return matchups
+    return pd.DataFrame({"TEAM_ID": playing_teams})
 
 
 def get_player_stats():
