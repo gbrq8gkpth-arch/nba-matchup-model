@@ -97,6 +97,7 @@ def get_team_defense():
         "TEAM_ID",
         "DEF_RATING",
         "PACE"
+        "OPP_FG3A"
     ]]
 
 
