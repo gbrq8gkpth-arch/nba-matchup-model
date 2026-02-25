@@ -172,7 +172,43 @@ def calculate_edges(players, defenses, matchups):
 
         # --- Pace adjustment ---
         pace_factor = opp_pace / league_avg_pace if league_avg_pace > 0 else 1
+                # --- Advanced 3PT Matchup Adjustment ---
 
+        if player["FGA"] > 0:
+            three_rate = player["FG3A"] / player["FGA"]
+        else:
+            three_rate = 0
+
+        league_avg_opp_3pt_pct = defenses["OPP_FG3_PCT"].mean()
+
+        opp_3pt_pct_allowed = opp_def["OPP_FG3_PCT"].values[0]
+
+        # How weak/strong opponent is vs 3
+        if league_avg_opp_3pt_pct > 0:
+            defense_gap = (opp_3pt_pct_allowed - league_avg_opp_3pt_pct) / league_avg_opp_3pt_pct
+        else:
+            defense_gap = 0
+
+        # Only apply if player is meaningfully 3PT reliant
+        if three_rate >= 0.35:
+            # scale effect by 3PT dependence
+            three_multiplier = 1 + (three_rate * defense_gap * 1.5)
+        else:
+            three_multiplier = 1
+
+        # Cap multiplier to avoid explosion
+        if three_multiplier > 1.10:
+            three_multiplier = 1.10
+        if three_multiplier < 0.90:
+            three_multiplier = 0.90
+
+        projected_points = (
+            projected_min *
+            adjusted_scoring_rate *
+            def_factor *
+            pace_factor *
+            three_multiplier
+        )
         # --- Final projection ---
         projected_points = projected_min * adjusted_scoring_rate * def_factor * pace_factor
 
