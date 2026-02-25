@@ -25,25 +25,23 @@ STAR_IMPACT_TEAMS = {
     "Shai Gilgeous-Alexander": 1610612760  # Thunder
 }
 def get_today_games():
+
+    from nba_api.stats.endpoints import scoreboardv2
+    from datetime import datetime
+
     today = datetime.today().strftime('%m/%d/%Y')
 
-    try:
-        print("Calling scoreboard...")
-        scoreboard = scoreboardv3.ScoreboardV3(game_date=today, timeout=10)
+    scoreboard = scoreboardv2.ScoreboardV2(game_date=today, timeout=60)
 
-        # Get the games header table
-        games_df = scoreboard.get_data_frames()[0]
+    games_df = scoreboard.get_data_frames()[0]
 
-        # Team info table (contains team IDs)
-        teams_df = scoreboard.get_data_frames()[2]
+    # Extract unique team IDs playing today
+    home_teams = games_df["HOME_TEAM_ID"].tolist()
+    away_teams = games_df["VISITOR_TEAM_ID"].tolist()
 
-        print("Scoreboard pulled.")
+    playing_teams = set(home_teams + away_teams)
 
-        return teams_df
-
-    except Exception as e:
-        print("Scoreboard failed:", e)
-        return pd.DataFrame()
+    return playing_teams
 
 
 def get_player_stats():
@@ -99,7 +97,7 @@ def get_team_defense():
     ]]
 
 
-def calculate_edges(players, defenses, games):
+def calculate_edges(players, defenses, playing_teams):
 
     results = []
 
@@ -107,7 +105,8 @@ def calculate_edges(players, defenses, games):
     league_avg_pace = defenses["PACE"].mean()
 
     for _, player in players.iterrows():
-
+        if player["TEAM_ID"] not in playing_teams:
+            continue
         # Skip injured players
         if player["PLAYER_NAME"] in OUT_PLAYERS:
             continue
@@ -201,7 +200,7 @@ def send_email(report_df):
 def main():
 
     print("Pulling today's slate...")
-    games = get_today_games()
+    playing_teams = get_today_games()
 
     print("Pulling player stats...")
     players = get_player_stats()
@@ -210,7 +209,7 @@ def main():
     defenses = get_team_defense()
 
     print("Calculating edges...")
-    results = calculate_edges(players, defenses, games)
+    results = calculate_edges(players, defenses, playing_teams)
 
     print("Sending email...")
     send_email(results)
