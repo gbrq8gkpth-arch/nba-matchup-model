@@ -100,21 +100,43 @@ def get_player_stats():
 # GET TEAM DEFENSE
 # ----------------------------
 def get_team_defense():
-    teams = leaguedashteamstats.LeagueDashTeamStats(
+
+    # Advanced team defense
+    teams_adv = leaguedashteamstats.LeagueDashTeamStats(
         season='2025-26',
         measure_type_detailed_defense='Advanced'
     )
 
-    df = teams.get_data_frames()[0]
+    adv_df = teams_adv.get_data_frames()[0]
+
+    # Opponent shooting splits
+    teams_opp = leaguedashteamstats.LeagueDashTeamStats(
+        season='2025-26',
+        measure_type_detailed_defense='Opponent'
+    )
+
+    opp_df = teams_opp.get_data_frames()[0]
+
+    # Merge both
+    df = adv_df.merge(
+        opp_df[[
+            "TEAM_ID",
+            "OPP_FG_PCT",
+            "OPP_FG3_PCT",
+            "OPP_FG3A",
+            "OPP_FGA"
+        ]],
+        on="TEAM_ID"
+    )
 
     return df[[
         "TEAM_ID",
         "DEF_RATING",
         "PACE",
+        "OPP_FG_PCT",
         "OPP_FG3_PCT",
-        "OPP_FGA",
         "OPP_FG3A",
-        "OPP_FG_PCT"
+        "OPP_FGA"
     ]]
 def calculate_edges(players, defenses, games):
     results = []
