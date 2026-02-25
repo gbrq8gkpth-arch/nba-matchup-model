@@ -40,41 +40,43 @@ def get_today_games():
 
 def get_player_stats():
 
-    # Base stats
-    base = leaguedashplayerstats.LeagueDashPlayerStats(
+    # Season stats
+    season = leaguedashplayerstats.LeagueDashPlayerStats(
         season='2025-26',
         season_type_all_star='Regular Season',
         per_mode_detailed='PerGame'
     )
 
-    base_df = base.get_data_frames()[0]
+    season_df = season.get_data_frames()[0]
 
-    # Advanced stats (USG_PCT lives here)
-    advanced = leaguedashplayerstats.LeagueDashPlayerStats(
+    # Last 10 stats
+    last10 = leaguedashplayerstats.LeagueDashPlayerStats(
         season='2025-26',
         season_type_all_star='Regular Season',
-        measure_type_detailed_defense='Advanced',
-        per_mode_detailed='PerGame'
+        per_mode_detailed='PerGame',
+        last_n_games=10
     )
 
-    adv_df = advanced.get_data_frames()[0]
+    last10_df = last10.get_data_frames()[0]
 
     # Merge on PLAYER_ID
-    df = base_df.merge(
-        adv_df[["PLAYER_ID", "USG_PCT"]],
-        on="PLAYER_ID"
+    df = season_df.merge(
+        last10_df[["PLAYER_ID", "MIN", "PTS"]],
+        on="PLAYER_ID",
+        suffixes=("_SEASON", "_L10")
     )
 
-    # Likely starters
-    starters = df[df["MIN"] > 20]
+    # Keep rotation players
+    df = df[df["MIN_SEASON"] > 15]
 
-    return starters[[
+    return df[[
         "PLAYER_NAME",
         "TEAM_ID",
-        "MIN",
-        "USG_PCT"
+        "MIN_SEASON",
+        "PTS_SEASON",
+        "MIN_L10",
+        "PTS_L10"
     ]]
-
 
 def get_team_defense():
     teams = leaguedashteamstats.LeagueDashTeamStats(
