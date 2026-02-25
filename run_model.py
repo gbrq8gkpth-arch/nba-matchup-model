@@ -96,7 +96,7 @@ def get_team_defense():
     return df[[
         "TEAM_ID",
         "DEF_RATING",
-        "PACE"
+        "PACE",
         "OPP_FG3A"
     ]]
 
