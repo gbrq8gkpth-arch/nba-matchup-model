@@ -35,13 +35,16 @@ def get_today_games():
 
     games_df = scoreboard.get_data_frames()[0]
 
-    # Extract unique team IDs playing today
-    home_teams = games_df["HOME_TEAM_ID"].tolist()
-    away_teams = games_df["VISITOR_TEAM_ID"].tolist()
+    matchups = {}
 
-    playing_teams = set(home_teams + away_teams)
+    for _, row in games_df.iterrows():
+        home = row["HOME_TEAM_ID"]
+        away = row["VISITOR_TEAM_ID"]
 
-    return playing_teams
+        matchups[home] = away
+        matchups[away] = home
+
+    return matchups
 
 
 def get_player_stats():
