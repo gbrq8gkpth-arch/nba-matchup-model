@@ -162,11 +162,10 @@ def calculate_edges(players, defenses, matchups):
         else:
             pts_per_min = 0
 
-        # --- Usage Adjustment ---
-        usage = player.get("USG_PCT", 20)
-        usage_factor = usage / 20
-        usage_multiplier = 0.7 + (usage_factor * 0.3)
-
+        # --- Usage Adjustment (FGA-based) ---
+        fga = player.get("FGA", 10)
+        usage_multiplier = 1 + (fga / 25)
+        
         adjusted_scoring_rate = pts_per_min * usage_multiplier
 
         # --- Defense adjustment ---
