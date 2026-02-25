@@ -100,7 +100,7 @@ def get_team_defense():
     ]]
 
 
-def calculate_edges(players, defenses, playing_teams):
+def calculate_edges(players, defenses, matchups):
 
     results = []
 
@@ -108,6 +108,16 @@ def calculate_edges(players, defenses, playing_teams):
     league_avg_pace = defenses["PACE"].mean()
 
     for _, player in players.iterrows():
+                if player["TEAM_ID"] not in matchups:
+            continue
+
+        opponent_id = matchups[player["TEAM_ID"]]
+
+        opp_def = defenses[defenses["TEAM_ID"] == opponent_id]
+
+        if opp_def.empty:
+            continue
+
         if player["TEAM_ID"] not in playing_teams:
             continue
         # Skip injured players
@@ -203,7 +213,7 @@ def send_email(report_df):
 def main():
 
     print("Pulling today's slate...")
-    playing_teams = get_today_games()
+    matchups = get_today_games()
 
     print("Pulling player stats...")
     players = get_player_stats()
@@ -212,7 +222,7 @@ def main():
     defenses = get_team_defense()
 
     print("Calculating edges...")
-    results = calculate_edges(players, defenses, playing_teams)
+    results = calculate_edges(players, defenses, matchups)
 
     print("Sending email...")
     send_email(results)
