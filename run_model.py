@@ -86,13 +86,32 @@ def get_player_stats():
     ]]
 
 def get_team_defense():
-    teams = leaguedashteamstats.LeagueDashTeamStats(
+
+    from nba_api.stats.endpoints import leaguedashteamstats
+
+    # Advanced defense metrics
+    advanced = leaguedashteamstats.LeagueDashTeamStats(
         season='2025-26',
         measure_type_detailed_defense='Advanced'
     )
 
-    df = teams.get_data_frames()[0]
-    print(df.columns)
+    adv_df = advanced.get_data_frames()[0]
+
+    # Opponent shooting metrics
+    opponent = leaguedashteamstats.LeagueDashTeamStats(
+        season='2025-26',
+        measure_type_detailed_defense='Opponent'
+    )
+
+    opp_df = opponent.get_data_frames()[0]
+
+    # Merge both on TEAM_ID
+    df = adv_df.merge(
+        opp_df[["TEAM_ID", "OPP_FG3A"]],
+        on="TEAM_ID",
+        how="left"
+    )
+
     return df[[
         "TEAM_ID",
         "DEF_RATING",
