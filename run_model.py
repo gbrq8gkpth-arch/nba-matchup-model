@@ -22,7 +22,7 @@ def get_today_games():
     try:
         print("Calling scoreboard...")
         scoreboard = scoreboardv3.ScoreboardV3(game_date=today, timeout=10)
-        games_df = scoreboard.get_data_frames()[0]
+        games_df = scoreboard.get_data_frames()[1]
         print(games_df.columns)
         return games_df
     except Exception as e:
