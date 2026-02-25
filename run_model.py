@@ -110,16 +110,26 @@ def calculate_edges(players, defenses, games):
     league_avg_def = defenses["DEF_RATING"].mean()
     league_avg_pace = defenses["PACE"].mean()
 
-    playing_teams = set(games["teamId"])
+    playing_teams = set(games["TEAM_ID"])
 
     for _, player in players.iterrows():
-        if player["PLAYER_NAME"] in OUT_PLAYERS:
-            continue
 
+        # Skip players not playing today
         if player["TEAM_ID"] not in playing_teams:
             continue
 
-        defense = defenses[defenses["TEAM_ID"] != player["TEAM_ID"]].mean()
+        # Skip injured players
+        if player["PLAYER_NAME"] in OUT_PLAYERS:
+            continue
+
+        # Get opponent defense (average of teams not player's team)
+        opp_def = defenses[defenses["TEAM_ID"] != player["TEAM_ID"]]
+
+        if opp_def.empty:
+            continue
+
+        opp_def_rating = opp_def["DEF_RATING"].mean()
+        opp_pace = opp_def["PACE"].mean()
 
         # --- Blended Minutes ---
         projected_min = (
@@ -127,28 +137,33 @@ def calculate_edges(players, defenses, games):
             (player["MIN_L10"] * 0.4)
         )
 
-        # Minutes boost if star teammate is OUT
-        for out_player in OUT_PLAYERS:
-            if out_player in STAR_IMPACT_TEAMS:
-                if player["TEAM_ID"] == STAR_IMPACT_TEAMS[out_player]:
-                    projected_min *= 1.08  # 8% boost
-        
-        # --- Scoring Rates ---
-        season_ppm = player["PTS_SEASON"] / player["MIN_SEASON"] if player["MIN_SEASON"] > 0 else 0
-        l10_ppm = player["PTS_L10"] / player["MIN_L10"] if player["MIN_L10"] > 0 else 0
+        # --- Base scoring rate ---
+        if player["MIN_SEASON"] > 0:
+            pts_per_min = player["PTS_SEASON"] / player["MIN_SEASON"]
+        else:
+            pts_per_min = 0
 
-        blended_ppm = (season_ppm * 0.6) + (l10_ppm * 0.4)
+        # --- Usage Adjustment ---
+        usage = player.get("USG_PCT", 20)  # default 20 if missing
+        usage_factor = usage / 20
+        usage_multiplier = 0.7 + (usage_factor * 0.3)
 
-        # --- Matchup Adjustments ---
-        pace_multiplier = defense["PACE"] / league_avg_pace
-        defense_multiplier = league_avg_def / defense["DEF_RATING"]
+        adjusted_scoring_rate = pts_per_min * usage_multiplier
 
-        projected_points = projected_min * blended_ppm * pace_multiplier * defense_multiplier
+        # --- Defense adjustment ---
+        def_factor = league_avg_def / opp_def_rating if opp_def_rating > 0 else 1
+
+        # --- Pace adjustment ---
+        pace_factor = opp_pace / league_avg_pace if league_avg_pace > 0 else 1
+
+        # --- Final projection ---
+        projected_points = projected_min * adjusted_scoring_rate * def_factor * pace_factor
 
         results.append({
             "Player": player["PLAYER_NAME"],
             "Team_ID": player["TEAM_ID"],
-            "Projected_Points": round(projected_points, 2)
+            "Projected_Points": round(projected_points, 2),
+            "Projected_Minutes": round(projected_min, 1)
         })
 
     results_df = pd.DataFrame(results)
@@ -156,15 +171,19 @@ def calculate_edges(players, defenses, games):
     if results_df.empty:
         return results_df
 
+    # Sort
     results_df = results_df.sort_values("Projected_Points", ascending=False)
-    # Keep top 3 projected players per team
+
+    # Keep top 3 per team
     results_df = (
         results_df
         .groupby("Team_ID", group_keys=False)
         .apply(lambda x: x.sort_values("Projected_Points", ascending=False).head(3))
     )
-    # Re-sort across entire slate and keep top 15 overall
+
+    # Re-sort entire slate and keep top 15 overall
     results_df = results_df.sort_values("Projected_Points", ascending=False).head(15)
+
     return results_df
 
 
