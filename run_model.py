@@ -4,8 +4,7 @@ import ssl
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from nba_api.stats.endpoints import scoreboardv2, leaguedashplayerstats, leaguedashteamstats, leaguedashptstats
-
+from nba_api.stats.endpoints import scoreboardv3, leaguedashplayerstats, leaguedashteamstats
 print("Script started...")
     # ----------------------------
     # ENV VARIABLES
@@ -20,7 +19,7 @@ RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
 def get_today_games():
     today = datetime.today().strftime('%m/%d/%Y')
     print("Calling scoreboard...")
-    scoreboard = scoreboardv2.ScoreboardV2(game_date=today, timeout=60)
+    scoreboard = scoreboardv3.ScoreboardV3(game_date=today, timeout=60)
     games = scoreboard.game_header.get_data_frame()
     return games[['HOME_TEAM_ID', 'VISITOR_TEAM_ID']]
 
