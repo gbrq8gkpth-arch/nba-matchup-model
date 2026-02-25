@@ -108,7 +108,13 @@ def calculate_edges(players, defenses, matchups):
     league_avg_pace = defenses["PACE"].mean()
 
     for _, player in players.iterrows():
-                if player["TEAM_ID"] not in matchups:
+
+        # Skip injured players
+        if player["PLAYER_NAME"] in OUT_PLAYERS:
+            continue
+
+        # Skip if team not playing today
+        if player["TEAM_ID"] not in matchups:
             continue
 
         opponent_id = matchups[player["TEAM_ID"]]
@@ -118,15 +124,8 @@ def calculate_edges(players, defenses, matchups):
         if opp_def.empty:
             continue
 
-        if player["TEAM_ID"] not in playing_teams:
-            continue
-        # Skip injured players
-        if player["PLAYER_NAME"] in OUT_PLAYERS:
-            continue
-
-        # Get opponent defensive averages (simple version)
-        opp_def_rating = defenses["DEF_RATING"].mean()
-        opp_pace = defenses["PACE"].mean()
+        opp_def_rating = opp_def["DEF_RATING"].values[0]
+        opp_pace = opp_def["PACE"].values[0]
 
         # --- Blended Minutes ---
         projected_min = (
@@ -140,7 +139,7 @@ def calculate_edges(players, defenses, matchups):
         else:
             pts_per_min = 0
 
-        # --- Usage Adjustment (safe default if missing) ---
+        # --- Usage Adjustment ---
         usage = player.get("USG_PCT", 20)
         usage_factor = usage / 20
         usage_multiplier = 0.7 + (usage_factor * 0.3)
@@ -168,17 +167,14 @@ def calculate_edges(players, defenses, matchups):
     if results_df.empty:
         return results_df
 
-    # Sort by projection
     results_df = results_df.sort_values("Projected_Points", ascending=False)
 
-    # Keep top 3 per team
     results_df = (
         results_df
         .groupby("Team_ID", group_keys=False)
         .apply(lambda x: x.sort_values("Projected_Points", ascending=False).head(3))
     )
 
-    # Re-sort entire slate and keep top 15 overall
     results_df = results_df.sort_values("Projected_Points", ascending=False).head(15)
 
     return results_df
