@@ -125,97 +125,71 @@ def get_team_defense():
 
 def calculate_edges(players, defenses, matchups):
 
+    print("Calculating edges...")
+
     results = []
 
+    # League averages
     league_avg_def = defenses["DEF_RATING"].mean()
     league_avg_pace = defenses["PACE"].mean()
 
     for _, player in players.iterrows():
 
-        # Skip injured players
-        if player["PLAYER_NAME"] in OUT_PLAYERS:
+        team_id = player["TEAM_ID"]
+
+        # Only include players whose teams are playing today
+        if team_id not in matchups:
             continue
 
-        # Skip if team not playing today
-        if player["TEAM_ID"] not in matchups:
-            continue
+        opp_team_id = matchups[team_id]
 
-        opponent_id = matchups[player["TEAM_ID"]]
-
-        opp_def = defenses[defenses["TEAM_ID"] == opponent_id]
+        # Get opponent defensive data
+        opp_def = defenses[defenses["TEAM_ID"] == opp_team_id]
 
         if opp_def.empty:
             continue
 
-        opp_def_rating = opp_def["DEF_RATING"].values[0]
-        opp_pace = opp_def["PACE"].values[0]
+        opp_def_rating = opp_def.iloc[0]["DEF_RATING"]
+        opp_pace = opp_def.iloc[0]["PACE"]
 
-        # --- Blended Minutes ---
-        projected_min = (
-            (player["MIN_SEASON"] * 0.6) +
-            (player["MIN_L10"] * 0.4)
-        )
+        # --- Minutes Projection ---
+        min_season = player.get("MIN_SEASON", 0)
+        min_l10 = player.get("MIN_L10", min_season)
 
-        # --- Base scoring rate ---
-        if player["MIN_SEASON"] > 0:
-            pts_per_min = player["PTS_SEASON"] / player["MIN_SEASON"]
+        projected_min = (min_season * 0.6) + (min_l10 * 0.4)
+
+        # --- Points Per Minute ---
+        pts_season = player.get("PTS_SEASON", 0)
+
+        if min_season > 0:
+            pts_per_min = pts_season / min_season
         else:
             pts_per_min = 0
 
-        # --- Usage Adjustment (FGA-based) ---
-        fga = player.get("FGA", 10)
-        usage_multiplier = 1 + (fga / 25)
-        
-        adjusted_scoring_rate = pts_per_min * usage_multiplier
+        # --- Base Projection ---
+        base_projection = projected_min * pts_per_min
 
-        # --- Defense adjustment ---
-        def_factor = league_avg_def / opp_def_rating if opp_def_rating > 0 else 1
+        # --- Controlled Adjustments ---
+        adjustment = 1.0
 
-        # --- Pace adjustment ---
-        pace_factor = opp_pace / league_avg_pace if league_avg_pace > 0 else 1
-                # --- Advanced 3PT Matchup Adjustment ---
+        # Usage adjustment (max ±10%)
+        usage = player.get("USG_PCT", 20)
+        usage_adj = min(max((usage - 20) / 100, -0.10), 0.10)
+        adjustment += usage_adj
 
-        if player["FGA"] > 0:
-            three_rate = player["FG3A"] / player["FGA"]
-        else:
-            three_rate = 0
+        # Defense adjustment (max ±8%)
+        def_adj = min(max((league_avg_def - opp_def_rating) / 200, -0.08), 0.08)
+        adjustment += def_adj
 
-        league_avg_opp_3pt_pct = defenses["OPP_FG3_PCT"].mean()
+        # Pace adjustment (max ±6%)
+        pace_adj = min(max((opp_pace - league_avg_pace) / 200, -0.06), 0.06)
+        adjustment += pace_adj
 
-        opp_3pt_pct_allowed = opp_def["OPP_FG3_PCT"].values[0]
-
-        # How weak/strong opponent is vs 3
-        if league_avg_opp_3pt_pct > 0:
-            defense_gap = (opp_3pt_pct_allowed - league_avg_opp_3pt_pct) / league_avg_opp_3pt_pct
-        else:
-            defense_gap = 0
-
-        # Only apply if player is meaningfully 3PT reliant
-        if three_rate >= 0.35:
-            # scale effect by 3PT dependence
-            three_multiplier = 1 + (three_rate * defense_gap * 1.5)
-        else:
-            three_multiplier = 1
-
-        # Cap multiplier to avoid explosion
-        if three_multiplier > 1.10:
-            three_multiplier = 1.10
-        if three_multiplier < 0.90:
-            three_multiplier = 0.90
-
-        projected_points = (
-            projected_min *
-            adjusted_scoring_rate *
-            def_factor *
-            pace_factor *
-            three_multiplier
-        )
-        # --- Final projection ---
-        projected_points = projected_min * adjusted_scoring_rate * def_factor * pace_factor
+        # --- Final Projection ---
+        projected_points = base_projection * adjustment
 
         results.append({
             "Player": player["PLAYER_NAME"],
-            "Team_ID": player["TEAM_ID"],
             "Projected_Points": round(projected_points, 2),
             "Projected_Minutes": round(projected_min, 1)
         })
@@ -225,15 +199,10 @@ def calculate_edges(players, defenses, matchups):
     if results_df.empty:
         return results_df
 
-    results_df = results_df.sort_values("Projected_Points", ascending=False)
-
-    results_df = (
-        results_df
-        .groupby("Team_ID", group_keys=False)
-        .apply(lambda x: x.sort_values("Projected_Points", ascending=False).head(3))
-    )
-
-    results_df = results_df.sort_values("Projected_Points", ascending=False).head(15)
+    results_df = results_df.sort_values(
+        by="Projected_Points",
+        ascending=False
+    ).head(5)
 
     return results_df
 
