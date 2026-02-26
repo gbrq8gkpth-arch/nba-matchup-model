@@ -32,12 +32,7 @@ def get_today_matchups():
 
     data_frames = scoreboard.get_data_frames()
 
-    # Print once to inspect structure
-    for i, df in enumerate(data_frames):
-        print(f"Table {i} columns: {df.columns}")
-
-    # The actual games table is usually index 1
-    games = data_frames[1]
+    games = data_frames[2]  # <-- Table 2 is team-level data
 
     if games.empty:
         print("No games today.")
@@ -45,12 +40,18 @@ def get_today_matchups():
 
     matchups = []
 
-    for _, row in games.iterrows():
-        home = row["homeTeamId"]
-        away = row["awayTeamId"]
+    # Group by gameId
+    for game_id, group in games.groupby("gameId"):
+        if len(group) != 2:
+            continue  # skip weird cases
 
-        matchups.append({"TEAM_ID": home, "OPP_TEAM_ID": away})
-        matchups.append({"TEAM_ID": away, "OPP_TEAM_ID": home})
+        team_ids = group["teamId"].values
+
+        team_a = team_ids[0]
+        team_b = team_ids[1]
+
+        matchups.append({"TEAM_ID": team_a, "OPP_TEAM_ID": team_b})
+        matchups.append({"TEAM_ID": team_b, "OPP_TEAM_ID": team_a})
 
     return pd.DataFrame(matchups)
 
