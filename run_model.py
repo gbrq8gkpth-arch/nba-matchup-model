@@ -1,270 +1,197 @@
-import os
-import ssl
-import smtplib
 import pandas as pd
-from datetime import datetime
-
+import datetime
+import smtplib
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
-from nba_api.stats.endpoints import scoreboardv2, leaguedashplayerstats, leaguedashteamstats
+from nba_api.stats.endpoints import (
+    scoreboardv3,
+    leaguedashplayerstats,
+    leaguedashteamstats
+)
 
-print("Script started...")
+############################
+# CONFIG
+############################
 
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
-# Manual injury override list
-OUT_PLAYERS = [
-    "Stephen Curry",
-    "Shai Gilgeous-Alexander"
-]
-# Star impact mapping (teams that lose high-minute players)
-STAR_IMPACT_TEAMS = {
-    "Stephen Curry": 1610612744,  # Warriors
-    "Shai Gilgeous-Alexander": 1610612760  # Thunder
-}
-def get_today_games():
+SEASON = "2025-26"
+SEASON_TYPE = "Regular Season"
 
-    today = datetime.today().strftime('%m/%d/%Y')
+OUT_PLAYERS = []  # Manually add players here if needed
 
-    scoreboard = scoreboardv2.ScoreboardV2(game_date=today, timeout=60)
+############################
+# GET TODAY'S MATCHUPS
+############################
 
-    # Line score table (contains TEAM_ID)
-    line_score = scoreboard.get_data_frames()[1]
+def get_today_matchups():
+    today = datetime.datetime.now().strftime("%m/%d/%Y")
 
-    playing_teams = line_score["TEAM_ID"].unique()
+    scoreboard = scoreboardv3.ScoreboardV3(
+        game_date=today,
+        timeout=60
+    )
 
-    return pd.DataFrame({"TEAM_ID": playing_teams})
+    games = scoreboard.get_data_frames()[0]
 
+    matchups = []
+
+    for _, row in games.iterrows():
+        home = row["HOME_TEAM_ID"]
+        away = row["VISITOR_TEAM_ID"]
+
+        matchups.append({"TEAM_ID": home, "OPP_TEAM_ID": away})
+        matchups.append({"TEAM_ID": away, "OPP_TEAM_ID": home})
+
+    return pd.DataFrame(matchups)
+
+############################
+# GET PLAYER STATS
+############################
 
 def get_player_stats():
+    players = leaguedashplayerstats.LeagueDashPlayerStats(
+        season=SEASON,
+        season_type_all_star=SEASON_TYPE,
+        measure_type_detailed_defense="Advanced",
+        per_mode_detailed="PerGame",
+        timeout=60
+    ).get_data_frames()[0]
 
-    # Season stats
-    season = leaguedashplayerstats.LeagueDashPlayerStats(
-        season='2025-26',
-        season_type_all_star='Regular Season',
-        per_mode_detailed='PerGame'
-    )
-    season_df = season.get_data_frames()[0]
+    if "USG_PCT" not in players.columns:
+        raise ValueError("USG_PCT not found in player stats")
 
-    # Last 10 stats
-    last10 = leaguedashplayerstats.LeagueDashPlayerStats(
-        season='2025-26',
-        season_type_all_star='Regular Season',
-        per_mode_detailed='PerGame',
-        last_n_games=10
-    )
-    last10_df = last10.get_data_frames()[0]
+    return players
 
-    df = season_df.merge(
-        last10_df[["PLAYER_ID", "MIN", "PTS"]],
-        on="PLAYER_ID",
-        suffixes=("_SEASON", "_L10")
-    )
-
-    # Keep rotation players
-    df = df[df["MIN_SEASON"] > 15]
-
-    return df[[
-    "PLAYER_NAME",
-    "PLAYER_ID",
-    "TEAM_ID",
-    "MIN_SEASON",
-    "PTS_SEASON",
-    "MIN_L10",
-    "PTS_L10",
-    "FGA",
-    "FG3A"
-]]
+############################
+# GET TEAM DEFENSE
+############################
 
 def get_team_defense():
+    teams = leaguedashteamstats.LeagueDashTeamStats(
+        season=SEASON,
+        season_type_all_star=SEASON_TYPE,
+        measure_type_detailed_defense="Advanced",
+        per_mode_detailed="PerGame",
+        timeout=60
+    ).get_data_frames()[0]
 
-    from nba_api.stats.endpoints import leaguedashteamstats
+    return teams[["TEAM_ID", "DEF_RATING", "PACE"]]
 
-    # Advanced defense metrics
-    advanced = leaguedashteamstats.LeagueDashTeamStats(
-        season='2025-26',
-        measure_type_detailed_defense='Advanced'
-    )
+############################
+# CALCULATE PROJECTIONS
+############################
 
-    adv_df = advanced.get_data_frames()[0]
-
-    # Opponent shooting metrics
-    opponent = leaguedashteamstats.LeagueDashTeamStats(
-        season='2025-26',
-        measure_type_detailed_defense='Opponent'
-    )
-
-    opp_df = opponent.get_data_frames()[0]
-
-    # Merge both on TEAM_ID
-    df = adv_df.merge(
-        opp_df[["TEAM_ID", "OPP_FG3A", "OPP_FG3_PCT"]],
-        on="TEAM_ID",
-        how="left"
-    )
-
-    return df[[
-        "TEAM_ID",
-        "DEF_RATING",
-        "PACE",
-        "OPP_FG3A",
-        "OPP_FG3_PCT"
-    ]]
-
-
-def calculate_edges(players, defenses, matchups):
-
-    print("Calculating edges...")
+def calculate_projections(players, defenses, matchups):
 
     results = []
 
-    OUT_PLAYER_IDS = []  # keep if using manual OUT filtering
+    teams_today = matchups["TEAM_ID"].unique()
 
-    # Teams playing today
-    playing_teams = set(matchups["TEAM_ID"])
+    players = players[players["TEAM_ID"].isin(teams_today)]
+    players = players[~players["PLAYER_NAME"].isin(OUT_PLAYERS)]
 
-    # League averages
-    league_avg_def = defenses["DEF_RATING"].mean()
-    league_avg_pace = defenses["PACE"].mean()
-
-    # --- LOOP BY TEAM ---
-    for team_id in playing_teams:
+    for team_id in teams_today:
 
         team_players = players[players["TEAM_ID"] == team_id]
 
         if team_players.empty:
             continue
 
-        # --- Keep Top 2 Usage Players Only ---
-        team_players = team_players.sort_values(
-            by="FGA",
-            ascending=False
-        ).head(2)
+        top_two = (
+            team_players
+            .sort_values("USG_PCT", ascending=False)
+            .head(2)
+        )
 
-        for _, player in team_players.iterrows():
+        opp_team_id = matchups[
+            matchups["TEAM_ID"] == team_id
+        ]["OPP_TEAM_ID"].values[0]
 
-            if player["PLAYER_ID"] in OUT_PLAYER_IDS:
+        team_def = defenses[defenses["TEAM_ID"] == team_id]
+        opp_def = defenses[defenses["TEAM_ID"] == opp_team_id]
+
+        if team_def.empty or opp_def.empty:
+            continue
+
+        team_pace = team_def["PACE"].values[0]
+        opp_pace = opp_def["PACE"].values[0]
+        opp_def_rating = opp_def["DEF_RATING"].values[0]
+
+        league_avg_def = defenses["DEF_RATING"].mean()
+        league_avg_pace = defenses["PACE"].mean()
+
+        for _, player in top_two.iterrows():
+
+            minutes = player["MIN"]
+            points = player["PTS"]
+
+            if minutes == 0:
                 continue
 
-            # --- Minutes Projection ---
-            projected_min = (
-                (player["MIN_SEASON"] * 0.6) +
-                (player["MIN_L10"] * 0.4)
-            )
+            ppm = points / minutes
 
-            # --- Points Per Minute ---
-            if player["MIN_SEASON"] > 0:
-                pts_per_min = player["PTS_SEASON"] / player["MIN_SEASON"]
-            else:
-                pts_per_min = 0
+            base_projection = ppm * minutes
 
-            # --- Base Projection ---
-            projected_points = projected_min * pts_per_min
+            pace_multiplier = ((team_pace + opp_pace) / 2) / league_avg_pace
+            defense_multiplier = league_avg_def / opp_def_rating
 
-            # --- Opponent Info ---
-            opp = defenses[defenses["TEAM_ID"] != team_id]
-
-            if opp.empty:
-                continue
-
-            # We need the actual opponent team ID
-            # matchups should map TEAM_ID to OPP_TEAM_ID
-            opp_team_id = matchups[matchups["TEAM_ID"] == team_id]["OPP_TEAM_ID"].values[0]
-
-            opp_row = defenses[defenses["TEAM_ID"] == opp_team_id]
-
-            if opp_row.empty:
-                continue
-
-            opp_def_rating = opp_row["DEF_RATING"].values[0]
-            opp_pace = opp_row["PACE"].values[0]
-
-            # --- MATCHUP SCORE ---
-            matchup_score = 0
-
-            # Usage impact
-            usage = player.get("USG_PCT", 20)
-            matchup_score += (usage - 20) * 0.1
-
-            # Defense weakness
-            def_diff = league_avg_def - opp_def_rating
-            matchup_score += def_diff * 0.05
-
-            # Pace environment
-            pace_diff = opp_pace - league_avg_pace
-            matchup_score += pace_diff * 0.05
+            projected_points = base_projection * pace_multiplier * defense_multiplier
 
             results.append({
                 "Player": player["PLAYER_NAME"],
-                "Projected_Points": round(projected_points, 2),
-                "Projected_Minutes": round(projected_min, 1),
-                "Matchup_Score": round(matchup_score, 2)
+                "Team_ID": team_id,
+                "USG_PCT": round(player["USG_PCT"], 2),
+                "Minutes": round(minutes, 1),
+                "Base_Points": round(base_projection, 1),
+                "Projected_Points": round(projected_points, 1)
             })
 
-    results_df = pd.DataFrame(results)
-
-    if results_df.empty:
-        return results_df
-
-    # Sort by matchup advantage
-    results_df = results_df.sort_values(
-        by="Matchup_Score",
+    return pd.DataFrame(results).sort_values(
+        "Projected_Points",
         ascending=False
     )
 
-    return results_df
+############################
+# EMAIL RESULTS
+############################
 
-def send_email(report_df):
+def send_email(results):
 
-    if report_df.empty:
-        body = "No games or data available today."
-    else:
-        top5 = report_df.head(5)
+    if results.empty:
+        print("No projections generated.")
+        return
 
-        body = "Top 5 Matchup Edges\n\n"
+    body = results.to_string(index=False)
 
-        for _, row in top5.iterrows():
-            body += (
-    f"{row['Player']} — "
-    f"Proj Pts: {row['Projected_Points']} | "
-    f"Proj Min: {row['Projected_Minutes']}\n"
-)
+    msg = MIMEText(body)
+    msg["Subject"] = "NBA AI Model Projections"
+    msg["From"] = "your_email@gmail.com"
+    msg["To"] = "your_email@gmail.com"
 
-    msg = MIMEMultipart()
-    msg["From"] = EMAIL_ADDRESS
-    msg["To"] = RECIPIENT_EMAIL
-    msg["Subject"] = f"NBA Matchup Report - {datetime.today().strftime('%b %d')}"
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()
+        server.login("your_email@gmail.com", "your_app_password")
+        server.send_message(msg)
 
-    msg.attach(MIMEText(body, "plain", "utf-8"))
-
-    context = ssl.create_default_context()
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
-        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-        server.sendmail(EMAIL_ADDRESS, RECIPIENT_EMAIL, msg.as_string())
-
+############################
+# MAIN
+############################
 
 def main():
+    print("Pulling matchups...")
+    matchups = get_today_matchups()
 
-    print("Pulling today's slate...")
-    matchups = get_today_games()
-
-    print("Pulling player stats...")
+    print("Pulling players...")
     players = get_player_stats()
 
-    print("Pulling team defense...")
+    print("Pulling defenses...")
     defenses = get_team_defense()
 
-    print("Calculating edges...")
-    results = calculate_edges(players, defenses, matchups)
+    print("Calculating projections...")
+    results = calculate_projections(players, defenses, matchups)
 
-    print("Sending email...")
+    print(results)
+
     send_email(results)
-
-    print("Done.")
-
 
 if __name__ == "__main__":
     main()
