@@ -185,25 +185,35 @@ def send_email(results):
         print("No projections generated.")
         return
 
+    import os
+    import smtplib
+    from email.mime.text import MIMEText
+
     EMAIL = os.getenv("EMAIL_ADDRESS")
     PASSWORD = os.getenv("EMAIL_PASSWORD")
 
     if not EMAIL or not PASSWORD:
         raise ValueError("Email credentials not found in environment variables")
 
+    # ✅ Add both emails here
+    RECIPIENTS = [
+        EMAIL,                      # your Gmail (from environment)
+        "cwstall4@icloud.com"  # <-- replace with your second email
+    ]
+
     body = results.to_string(index=False)
 
     msg = MIMEText(body)
     msg["Subject"] = "NBA AI Model Projections"
     msg["From"] = EMAIL
-    msg["To"] = EMAIL
+    msg["To"] = ", ".join(RECIPIENTS)
 
     with smtplib.SMTP("smtp.gmail.com", 587) as server:
         server.starttls()
         server.login(EMAIL, PASSWORD)
-        server.send_message(msg)
+        server.sendmail(EMAIL, RECIPIENTS, msg.as_string())
 
-    print("Email sent successfully.")
+    print("Email sent successfully to:", RECIPIENTS)
 
 def main():
     print("Pulling matchups...")
