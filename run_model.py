@@ -31,7 +31,7 @@ def get_today_matchups():
     )
 
     games = scoreboard.get_data_frames()[0]
-
+    print(games.columns)
     if games.empty:
         print("No games today.")
         return pd.DataFrame(columns=["TEAM_ID", "OPP_TEAM_ID"])
