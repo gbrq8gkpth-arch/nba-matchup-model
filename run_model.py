@@ -201,7 +201,16 @@ def send_email(results):
         "cwstall4@icloud.com"  # <-- replace with your second email
     ]
 
-    body = results.to_string(index=False)
+    body = "NBA AI Model – Top Usage Projections\n\n"
+body += "-" * 70 + "\n"
+
+for _, row in results.iterrows():
+    body += (
+        f"{row['Player']:<20}"
+        f"  Proj: {row['Projected_Points']:<5}"
+        f"  Min: {row['Minutes']:<4}"
+        f"  USG: {round(row['USG_PCT']*100,1)}%\n"
+    )
 
     msg = MIMEText(body)
     msg["Subject"] = "NBA AI Model Projections"
