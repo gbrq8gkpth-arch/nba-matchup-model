@@ -30,8 +30,15 @@ def get_today_matchups():
         timeout=60
     )
 
-    games = scoreboard.get_data_frames()[0]
-    print(games.columns)
+    data_frames = scoreboard.get_data_frames()
+
+    # Print once to inspect structure
+    for i, df in enumerate(data_frames):
+        print(f"Table {i} columns: {df.columns}")
+
+    # The actual games table is usually index 1
+    games = data_frames[1]
+
     if games.empty:
         print("No games today.")
         return pd.DataFrame(columns=["TEAM_ID", "OPP_TEAM_ID"])
