@@ -32,20 +32,20 @@ def get_today_matchups():
 
     games = scoreboard.get_data_frames()[0]
 
+    if games.empty:
+        print("No games today.")
+        return pd.DataFrame(columns=["TEAM_ID", "OPP_TEAM_ID"])
+
     matchups = []
 
     for _, row in games.iterrows():
-        home = row["HOME_TEAM_ID"]
-        away = row["VISITOR_TEAM_ID"]
+        home = row["homeTeamId"]
+        away = row["awayTeamId"]
 
         matchups.append({"TEAM_ID": home, "OPP_TEAM_ID": away})
         matchups.append({"TEAM_ID": away, "OPP_TEAM_ID": home})
 
     return pd.DataFrame(matchups)
-
-############################
-# GET PLAYER STATS
-############################
 
 def get_player_stats():
     players = leaguedashplayerstats.LeagueDashPlayerStats(
