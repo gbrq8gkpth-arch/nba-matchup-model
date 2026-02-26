@@ -56,7 +56,17 @@ def get_today_matchups():
     return pd.DataFrame(matchups)
 
 def get_player_stats():
-    players = leaguedashplayerstats.LeagueDashPlayerStats(
+    # Pull Base stats (for PTS, MIN)
+    base = leaguedashplayerstats.LeagueDashPlayerStats(
+        season=SEASON,
+        season_type_all_star=SEASON_TYPE,
+        measure_type_detailed_defense="Base",
+        per_mode_detailed="PerGame",
+        timeout=60
+    ).get_data_frames()[0]
+
+    # Pull Advanced stats (for USG_PCT)
+    advanced = leaguedashplayerstats.LeagueDashPlayerStats(
         season=SEASON,
         season_type_all_star=SEASON_TYPE,
         measure_type_detailed_defense="Advanced",
@@ -64,14 +74,17 @@ def get_player_stats():
         timeout=60
     ).get_data_frames()[0]
 
-    if "USG_PCT" not in players.columns:
-        raise ValueError("USG_PCT not found in player stats")
+    if "USG_PCT" not in advanced.columns:
+        raise ValueError("USG_PCT missing from advanced stats")
+
+    # Merge on PLAYER_ID
+    players = base.merge(
+        advanced[["PLAYER_ID", "USG_PCT"]],
+        on="PLAYER_ID",
+        how="left"
+    )
 
     return players
-
-############################
-# GET TEAM DEFENSE
-############################
 
 def get_team_defense():
     teams = leaguedashteamstats.LeagueDashTeamStats(
