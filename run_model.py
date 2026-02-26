@@ -120,96 +120,99 @@ def calculate_edges(players, defenses, matchups):
 
     results = []
 
-    OUT_PLAYER_IDS = [1628983]
+    OUT_PLAYER_IDS = []  # keep if using manual OUT filtering
 
-    # --- MANUAL OUT LIST (names exactly as shown in PLAYER_NAME column) ---
-    OUT_PLAYERS = [
-        "Stephen Curry",
-        "Shai Gilgeous Alexander"
-    ]
-
-    # Normalize OUT list for safety
-    normalized_out = [
-        p.lower().replace("-", "").strip()
-        for p in OUT_PLAYERS
-    ]
-
-    # --- Only keep teams playing today ---
+    # Teams playing today
     playing_teams = set(matchups["TEAM_ID"])
 
-    for _, player in players.iterrows():
-        if player["PLAYER_ID"] in OUT_PLAYER_IDS:
-            continue
-        print(player["PLAYER_NAME"], player["PLAYER_ID"])
+    # League averages
+    league_avg_def = defenses["DEF_RATING"].mean()
+    league_avg_pace = defenses["PACE"].mean()
 
-        # Skip if team not playing today
-        if player["TEAM_ID"] not in playing_teams:
-            continue
+    # --- LOOP BY TEAM ---
+    for team_id in playing_teams:
 
-        # Skip if manually listed OUT
-        player_name_clean = player["PLAYER_NAME"].lower().replace("-", "").strip()
-        if player_name_clean in normalized_out:
+        team_players = players[players["TEAM_ID"] == team_id]
+
+        if team_players.empty:
             continue
 
-        # --- Minutes Projection (blend season + last 10) ---
-        projected_min = (
-            (player["MIN_SEASON"] * 0.6) +
-            (player["MIN_L10"] * 0.4)
-        )
+        # --- Keep Top 2 Usage Players Only ---
+        team_players = team_players.sort_values(
+            by="USG_PCT",
+            ascending=False
+        ).head(2)
 
-        # --- Points Per Minute ---
-        if player["MIN_SEASON"] > 0:
-            pts_per_min = player["PTS_SEASON"] / player["MIN_SEASON"]
-        else:
-            pts_per_min = 0
+        for _, player in team_players.iterrows():
 
-        # --- Usage Adjustment ---
-        usage = player.get("USG_PCT", 20)
-        usage_factor = usage / 20
-        usage_multiplier = 0.7 + (usage_factor * 0.3)
+            if player["PLAYER_ID"] in OUT_PLAYER_IDS:
+                continue
 
-        adjusted_scoring_rate = pts_per_min * usage_multiplier
+            # --- Minutes Projection ---
+            projected_min = (
+                (player["MIN_SEASON"] * 0.6) +
+                (player["MIN_L10"] * 0.4)
+            )
 
-        # --- Opponent Info ---
-        opponent = defenses[defenses["TEAM_ID"] == player["TEAM_ID"]]
+            # --- Points Per Minute ---
+            if player["MIN_SEASON"] > 0:
+                pts_per_min = player["PTS_SEASON"] / player["MIN_SEASON"]
+            else:
+                pts_per_min = 0
 
-        if opponent.empty:
-            continue
+            # --- Base Projection ---
+            projected_points = projected_min * pts_per_min
 
-        opp_def_rating = opponent["DEF_RATING"].values[0]
-        opp_pace = opponent["PACE"].values[0]
+            # --- Opponent Info ---
+            opp = defenses[defenses["TEAM_ID"] != team_id]
 
-        league_avg_def = defenses["DEF_RATING"].mean()
-        league_avg_pace = defenses["PACE"].mean()
+            if opp.empty:
+                continue
 
-        # --- Defense Adjustment ---
-        def_factor = league_avg_def / opp_def_rating if opp_def_rating > 0 else 1
+            # We need the actual opponent team ID
+            # matchups should map TEAM_ID to OPP_TEAM_ID
+            opp_team_id = matchups[matchups["TEAM_ID"] == team_id]["OPP_TEAM_ID"].values[0]
 
-        # --- Pace Adjustment ---
-        pace_factor = opp_pace / league_avg_pace if league_avg_pace > 0 else 1
+            opp_row = defenses[defenses["TEAM_ID"] == opp_team_id]
 
-        # --- Final Projection ---
-        projected_points = (
-            projected_min *
-            adjusted_scoring_rate *
-            def_factor *
-            pace_factor
-        )
+            if opp_row.empty:
+                continue
 
-        results.append({
-            "Player": player["PLAYER_NAME"],
-            "Team_ID": player["TEAM_ID"],
-            "Projected_Points": round(projected_points, 2),
-            "Projected_Minutes": round(projected_min, 1)
-        })
+            opp_def_rating = opp_row["DEF_RATING"].values[0]
+            opp_pace = opp_row["PACE"].values[0]
+
+            # --- MATCHUP SCORE ---
+            matchup_score = 0
+
+            # Usage impact
+            usage = player.get("USG_PCT", 20)
+            matchup_score += (usage - 20) * 0.1
+
+            # Defense weakness
+            def_diff = league_avg_def - opp_def_rating
+            matchup_score += def_diff * 0.05
+
+            # Pace environment
+            pace_diff = opp_pace - league_avg_pace
+            matchup_score += pace_diff * 0.05
+
+            results.append({
+                "Player": player["PLAYER_NAME"],
+                "Projected_Points": round(projected_points, 2),
+                "Projected_Minutes": round(projected_min, 1),
+                "Matchup_Score": round(matchup_score, 2)
+            })
 
     results_df = pd.DataFrame(results)
 
     if results_df.empty:
         return results_df
 
-    # Sort entire slate
-    results_df = results_df.sort_values("Projected_Points", ascending=False)
+    # Sort by matchup advantage
+    results_df = results_df.sort_values(
+        by="Matchup_Score",
+        ascending=False
+    )
 
     return results_df
 
