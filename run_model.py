@@ -139,7 +139,7 @@ def calculate_edges(players, defenses, matchups):
 
         # --- Keep Top 2 Usage Players Only ---
         team_players = team_players.sort_values(
-            by="USG_PCT",
+            by="FGA",
             ascending=False
         ).head(2)
 
