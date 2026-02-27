@@ -23,14 +23,19 @@ OUT_PLAYERS = []  # Manually add players here if needed
 ############################
 
 def get_today_matchups():
+
     from datetime import datetime
-from zoneinfo import ZoneInfo
+    from zoneinfo import ZoneInfo
+    from nba_api.stats.endpoints import scoreboardv3
+    import pandas as pd
 
-central = ZoneInfo("America/Chicago")
-today = datetime.now(central).strftime("%m/%d/%Y")
+    # ---- Kansas Time ----
+    central = ZoneInfo("America/Chicago")
+    today = datetime.now(central).strftime("%m/%d/%Y")
 
-print("Kansas Date Used:", today)
+    print("Kansas Date Used:", today)
 
+    # ---- Pull Scoreboard ----
     scoreboard = scoreboardv3.ScoreboardV3(
         game_date=today,
         timeout=60
@@ -38,7 +43,8 @@ print("Kansas Date Used:", today)
 
     data_frames = scoreboard.get_data_frames()
 
-    games = data_frames[2]  # <-- Table 2 is team-level data
+    # Table 2 = team-level rows (two per game)
+    games = data_frames[2]
 
     if games.empty:
         print("No games today.")
@@ -46,10 +52,11 @@ print("Kansas Date Used:", today)
 
     matchups = []
 
-    # Group by gameId
+    # Build matchup pairs from team rows
     for game_id, group in games.groupby("gameId"):
+
         if len(group) != 2:
-            continue  # skip weird cases
+            continue
 
         team_ids = group["teamId"].values
 
