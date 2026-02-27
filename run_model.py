@@ -107,22 +107,33 @@ def calculate_projections(players, defenses, matchups):
 
     teams_today = matchups["TEAM_ID"].unique()
 
+    # Filter to only teams playing today
     players = players[players["TEAM_ID"].isin(teams_today)]
-    players = players[~players["PLAYER_NAME"].isin(OUT_PLAYERS)]
 
     for team_id in teams_today:
 
         team_players = players[players["TEAM_ID"] == team_id]
 
+        # ---- Rotation Filter (removes garbage players) ----
+        team_players = team_players[team_players["MIN"] >= 22]
+
         if team_players.empty:
             continue
 
+        # ---- Opportunity Score (usage × minutes) ----
+        team_players = team_players.copy()
+        team_players["OPPORTUNITY_SCORE"] = (
+            team_players["USG_PCT"] * team_players["MIN"]
+        )
+
+        # ---- Select top 2 offensive engines per team ----
         top_two = (
             team_players
-            .sort_values("USG_PCT", ascending=False)
+            .sort_values("OPPORTUNITY_SCORE", ascending=False)
             .head(2)
         )
 
+        # ---- Get Opponent ----
         opp_team_id = matchups[
             matchups["TEAM_ID"] == team_id
         ]["OPP_TEAM_ID"].values[0]
@@ -149,7 +160,6 @@ def calculate_projections(players, defenses, matchups):
                 continue
 
             ppm = points / minutes
-
             base_projection = ppm * minutes
 
             pace_multiplier = ((team_pace + opp_pace) / 2) / league_avg_pace
@@ -159,25 +169,20 @@ def calculate_projections(players, defenses, matchups):
 
             results.append({
                 "Player": player["PLAYER_NAME"],
-                "Team_ID": team_id,
-                "USG_PCT": round(player["USG_PCT"], 2),
+                "Projected_Points": round(projected_points, 1),
                 "Minutes": round(minutes, 1),
-                "Base_Points": round(base_projection, 1),
-                "Projected_Points": round(projected_points, 1)
+                "USG_PCT": player["USG_PCT"]
             })
 
-    return pd.DataFrame(results).sort_values(
-        "Projected_Points",
-        ascending=False
+    # ---- Final Ranking (Top 10 Only) ----
+    final_df = (
+        pd.DataFrame(results)
+        .sort_values("Projected_Points", ascending=False)
+        .head(10)
+        .reset_index(drop=True)
     )
 
-############################
-# EMAIL RESULTS
-############################
-
-import os
-import smtplib
-from email.mime.text import MIMEText
+    return final_df
 
 def send_email(results):
 
