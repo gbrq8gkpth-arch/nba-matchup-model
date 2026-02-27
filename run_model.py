@@ -23,7 +23,13 @@ OUT_PLAYERS = []  # Manually add players here if needed
 ############################
 
 def get_today_matchups():
-    today = datetime.datetime.now().strftime("%m/%d/%Y")
+    from datetime import datetime
+from zoneinfo import ZoneInfo
+
+central = ZoneInfo("America/Chicago")
+today = datetime.now(central).strftime("%m/%d/%Y")
+
+print("Kansas Date Used:", today)
 
     scoreboard = scoreboardv3.ScoreboardV3(
         game_date=today,
