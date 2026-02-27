@@ -125,6 +125,10 @@ def calculate_projections(players, defenses, matchups):
 
     # Filter to only teams playing today
     players = players[players["TEAM_ID"].isin(teams_today)]
+    
+    # Remove manually marked OUT players
+    if OUT_PLAYERS:
+        players = players[~players["PLAYER_NAME"].isin(OUT_PLAYERS)]
 
     for team_id in teams_today:
 
