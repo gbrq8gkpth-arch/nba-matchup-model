@@ -16,7 +16,10 @@ from nba_api.stats.endpoints import (
 SEASON = "2025-26"
 SEASON_TYPE = "Regular Season"
 
-OUT_PLAYERS = []  # Manually add players here if needed
+OUT_PLAYERS = [
+    "Deni Avdija",
+    "Lauri Markkanen"
+]  # Manually add players here if needed
 
 ############################
 # GET TODAY'S MATCHUPS
