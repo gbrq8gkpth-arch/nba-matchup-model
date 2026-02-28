@@ -225,31 +225,31 @@ def send_email(results):
     if not EMAIL or not PASSWORD:
         raise ValueError("Email credentials not found in environment variables")
 
-    # Send to both emails
     RECIPIENTS = [
-        EMAIL,                     # Gmail from environment
-        "cwstall4@icloud.com"      # Your second email
+        EMAIL,
+        "cwstall4@icloud.com"
     ]
 
-    # -------- Format Email Body --------
-    body = "NBA AI Model – Top Usage Projections\n\n"
-    body += "-" * 70 + "\n"
+    # ----- Format Email Body -----
+    body = "NBA AI Model – Top Usage Mismatch Spots\n\n"
+    body += "-" * 90 + "\n"
 
     for _, row in results.iterrows():
         body += (
-            f"{row['Player']:<20}"
+            f"{row['Player']:<24}"
             f"  Proj: {row['Projected_Points']:.1f}"
             f"  Min: {row['Minutes']:.1f}"
-            f"  USG: {round(row['USG_PCT']*100,1)}%\n"
+            f"  USG: {round(row['USG_PCT']*100,1)}%"
+            f"  Mismatch: {row['Mismatch_Score']:.2f}\n"
         )
 
-    # -------- Build Message --------
+    # ----- Build Message -----
     msg = MIMEText(body)
     msg["Subject"] = "NBA AI Model Projections"
     msg["From"] = EMAIL
     msg["To"] = ", ".join(RECIPIENTS)
 
-    # -------- Send --------
+    # ----- Send -----
     with smtplib.SMTP("smtp.gmail.com", 587) as server:
         server.starttls()
         server.login(EMAIL, PASSWORD)
