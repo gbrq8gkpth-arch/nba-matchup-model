@@ -125,7 +125,7 @@ def calculate_projections(players, defenses, matchups):
 
     # Filter to only teams playing today
     players = players[players["TEAM_ID"].isin(teams_today)]
-    
+
     # Remove manually marked OUT players
     if OUT_PLAYERS:
         players = players[~players["PLAYER_NAME"].isin(OUT_PLAYERS)]
@@ -134,26 +134,26 @@ def calculate_projections(players, defenses, matchups):
 
         team_players = players[players["TEAM_ID"] == team_id]
 
-        # ---- Rotation Filter (removes garbage players) ----
+        # Rotation filter (real players only)
         team_players = team_players[team_players["MIN"] >= 22]
 
         if team_players.empty:
             continue
 
-        # ---- Opportunity Score (usage × minutes) ----
+        # Opportunity score (usage × minutes)
         team_players = team_players.copy()
         team_players["OPPORTUNITY_SCORE"] = (
             team_players["USG_PCT"] * team_players["MIN"]
         )
 
-        # ---- Select top 2 offensive engines per team ----
+        # Select top 2 offensive engines per team
         top_two = (
             team_players
             .sort_values("OPPORTUNITY_SCORE", ascending=False)
             .head(2)
         )
 
-        # ---- Get Opponent ----
+        # Get opponent
         opp_team_id = matchups[
             matchups["TEAM_ID"] == team_id
         ]["OPP_TEAM_ID"].values[0]
@@ -187,17 +187,22 @@ def calculate_projections(players, defenses, matchups):
 
             projected_points = base_projection * pace_multiplier * defense_multiplier
 
+            # --- Defensive Weakness Layer ---
+            weakness_factor = opp_def_rating / league_avg_def
+            mismatch_score = projected_points * weakness_factor
+
             results.append({
                 "Player": player["PLAYER_NAME"],
                 "Projected_Points": round(projected_points, 1),
                 "Minutes": round(minutes, 1),
-                "USG_PCT": player["USG_PCT"]
+                "USG_PCT": player["USG_PCT"],
+                "Mismatch_Score": round(mismatch_score, 2)
             })
 
-    # ---- Final Ranking (Top 10 Only) ----
+    # Rank by mismatch score instead of raw projection
     final_df = (
         pd.DataFrame(results)
-        .sort_values("Projected_Points", ascending=False)
+        .sort_values("Mismatch_Score", ascending=False)
         .head(10)
         .reset_index(drop=True)
     )
