@@ -71,9 +71,11 @@ def get_today_matchups():
 
     return pd.DataFrame(matchups)
 
+from nba_api.stats.endpoints import commonplayerinfo
+
 def get_player_stats():
 
-    # Pull Base stats (for PTS, MIN, GP, POSITION)
+    # --- Base stats (PTS, MIN, GP) ---
     base = leaguedashplayerstats.LeagueDashPlayerStats(
         season=SEASON,
         season_type_all_star=SEASON_TYPE,
@@ -82,7 +84,7 @@ def get_player_stats():
         timeout=60
     ).get_data_frames()[0]
 
-    # Pull Advanced stats (for USG_PCT)
+    # --- Advanced stats (USG_PCT) ---
     advanced = leaguedashplayerstats.LeagueDashPlayerStats(
         season=SEASON,
         season_type_all_star=SEASON_TYPE,
@@ -91,15 +93,40 @@ def get_player_stats():
         timeout=60
     ).get_data_frames()[0]
 
-    # Merge USG_PCT into base stats
+    # Merge USG_PCT
     players = base.merge(
         advanced[["PLAYER_ID", "USG_PCT"]],
         on="PLAYER_ID",
         how="left"
     )
 
-    # ---- TEMP DEBUG: show available columns ----
-    print("PLAYER COLUMNS:")
+    # --- Pull Positions ---
+    positions = []
+
+    for player_id in players["PLAYER_ID"].unique():
+        try:
+            info = commonplayerinfo.CommonPlayerInfo(
+                player_id=player_id,
+                timeout=30
+            ).get_data_frames()[0]
+
+            positions.append({
+                "PLAYER_ID": player_id,
+                "POSITION": info["POSITION"].values[0]
+            })
+
+        except:
+            continue
+
+    position_df = pd.DataFrame(positions)
+
+    players = players.merge(
+        position_df,
+        on="PLAYER_ID",
+        how="left"
+    )
+
+    print("PLAYER COLUMNS AFTER POSITION MERGE:")
     print(players.columns)
 
     return players
