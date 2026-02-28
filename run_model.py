@@ -174,6 +174,7 @@ def calculate_projections(players, defenses, matchups):
     league_avg_pace = defenses["PACE"].mean()
     league_avg_fga = defenses["FGA"].mean()
     league_avg_fg3a = defenses["FG3A"].mean()
+    league_avg_2pa = (defenses["FGA"] - defenses["FG3A"]).mean()
 
     for team_id in teams_today:
 
@@ -205,6 +206,7 @@ def calculate_projections(players, defenses, matchups):
 
         opp_fga = opp_def["FGA"].values[0]
         opp_fg3a = opp_def["FG3A"].values[0]
+        opp_2pa = opp_fga - opp_fg3a
 
         pace_multiplier = ((team_pace + opp_pace) / 2) / league_avg_pace
         volume_multiplier = opp_fga / league_avg_fga
@@ -226,10 +228,15 @@ def calculate_projections(players, defenses, matchups):
             # ---- Environment Layer ----
             environment_multiplier = pace_multiplier * volume_multiplier
 
-            # Guards benefit more from perimeter volume
+            # Guards get perimeter boost
             if role == "Guard":
                 perimeter_multiplier = opp_fg3a / league_avg_fg3a
                 environment_multiplier *= perimeter_multiplier
+
+            # Bigs get interior boost
+            if role == "Big":
+                paint_multiplier = opp_2pa / league_avg_2pa
+                environment_multiplier *= paint_multiplier
 
             mismatch_score = projected_points * environment_multiplier
 
