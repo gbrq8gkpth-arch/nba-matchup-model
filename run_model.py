@@ -102,7 +102,20 @@ def get_player_stats():
 
     return players
 def get_team_defense():
-    teams = leaguedashteamstats.LeagueDashTeamStats(
+
+    from nba_api.stats.endpoints import leaguedashteamstats
+
+    # --- Base Defense Stats ---
+    base_defense = leaguedashteamstats.LeagueDashTeamStats(
+        season=SEASON,
+        season_type_all_star=SEASON_TYPE,
+        measure_type_detailed_defense="Base",
+        per_mode_detailed="PerGame",
+        timeout=60
+    ).get_data_frames()[0]
+
+    # --- Advanced Stats (for Pace + Defensive Rating) ---
+    advanced_defense = leaguedashteamstats.LeagueDashTeamStats(
         season=SEASON,
         season_type_all_star=SEASON_TYPE,
         measure_type_detailed_defense="Advanced",
@@ -110,11 +123,28 @@ def get_team_defense():
         timeout=60
     ).get_data_frames()[0]
 
-    return teams[["TEAM_ID", "DEF_RATING", "PACE"]]
+    # Merge what we need
+    defenses = base_defense.merge(
+        advanced_defense[["TEAM_ID", "PACE", "DEF_RATING"]],
+        on="TEAM_ID",
+        how="left"
+    )
 
-############################
-# CALCULATE PROJECTIONS
-############################
+    # Keep only relevant columns
+    defenses = defenses[[
+        "TEAM_ID",
+        "TEAM_NAME",
+        "PTS",         # Points allowed per game
+        "FGA",         # Opponent field goal attempts allowed
+        "FG3A",        # Opponent 3-point attempts allowed
+        "PACE",
+        "DEF_RATING"
+    ]]
+
+    print("DEFENSE COLUMNS:")
+    print(defenses.columns)
+
+    return defenses
 
 def calculate_projections(players, defenses, matchups):
 
