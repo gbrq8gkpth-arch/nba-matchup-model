@@ -72,7 +72,8 @@ def get_today_matchups():
     return pd.DataFrame(matchups)
 
 def get_player_stats():
-    # Pull Base stats (for PTS, MIN)
+
+    # Pull Base stats (for PTS, MIN, GP, POSITION)
     base = leaguedashplayerstats.LeagueDashPlayerStats(
         season=SEASON,
         season_type_all_star=SEASON_TYPE,
@@ -90,15 +91,16 @@ def get_player_stats():
         timeout=60
     ).get_data_frames()[0]
 
-    if "USG_PCT" not in advanced.columns:
-        raise ValueError("USG_PCT missing from advanced stats")
-
-    # Merge on PLAYER_ID
+    # Merge USG_PCT into base stats
     players = base.merge(
         advanced[["PLAYER_ID", "USG_PCT"]],
         on="PLAYER_ID",
         how="left"
     )
+
+    # ---- TEMP DEBUG: show available columns ----
+    print("PLAYER COLUMNS:")
+    print(players.columns)
 
     return players
 
