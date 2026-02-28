@@ -157,7 +157,6 @@ def calculate_projections(players, defenses, matchups):
 
     players = players.copy()
 
-    # ---- Assign Functional Role ----
     def assign_role(row):
         if row["REB"] >= 8:
             return "Big"
@@ -168,11 +167,11 @@ def calculate_projections(players, defenses, matchups):
 
     players["ROLE"] = players.apply(assign_role, axis=1)
 
-    # ---- League Environment Averages ----
     league_avg_pace = defenses["PACE"].mean()
     league_avg_fga = defenses["FGA"].mean()
     league_avg_fg3a = defenses["FG3A"].mean()
-    league_avg_2pa = (defenses["FGA"] - defenses["FG3A"]).mean()
+    league_avg_fg_pct = defenses["FG_PCT"].mean()
+    league_avg_fg3_pct = defenses["FG3_PCT"].mean()
 
     for team_id in teams_today:
 
@@ -204,10 +203,12 @@ def calculate_projections(players, defenses, matchups):
 
         opp_fga = opp_def["FGA"].values[0]
         opp_fg3a = opp_def["FG3A"].values[0]
-        opp_2pa = opp_fga - opp_fg3a
+        opp_fg_pct = opp_def["FG_PCT"].values[0]
+        opp_fg3_pct = opp_def["FG3_PCT"].values[0]
 
         pace_multiplier = ((team_pace + opp_pace) / 2) / league_avg_pace
         volume_multiplier = opp_fga / league_avg_fga
+        efficiency_multiplier = opp_fg_pct / league_avg_fg_pct
 
         for _, player in top_two.iterrows():
 
@@ -221,26 +222,22 @@ def calculate_projections(players, defenses, matchups):
             ppm = points / minutes
             base_projection = ppm * minutes
 
-            projected_points = base_projection
+            environment_multiplier = (
+                pace_multiplier *
+                volume_multiplier *
+                efficiency_multiplier
+            )
 
-            # ---- Environment Layer ----
-            environment_multiplier = pace_multiplier * volume_multiplier
-
-            # Guards get perimeter boost
+            # Guards get perimeter efficiency boost
             if role == "Guard":
-                perimeter_multiplier = opp_fg3a / league_avg_fg3a
-                environment_multiplier *= perimeter_multiplier
+                perimeter_efficiency = opp_fg3_pct / league_avg_fg3_pct
+                environment_multiplier *= perimeter_efficiency
 
-            # Bigs get interior boost
-            if role == "Big":
-                paint_multiplier = opp_2pa / league_avg_2pa
-                environment_multiplier *= paint_multiplier
-
-            mismatch_score = projected_points * environment_multiplier
+            mismatch_score = base_projection * environment_multiplier
 
             results.append({
                 "Player": player["PLAYER_NAME"],
-                "Projected_Points": round(projected_points, 1),
+                "Projected_Points": round(base_projection, 1),
                 "Minutes": round(minutes, 1),
                 "USG_PCT": player["USG_PCT"],
                 "Role": role,
