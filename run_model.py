@@ -152,40 +152,37 @@ def calculate_projections(players, defenses, matchups):
 
     teams_today = matchups["TEAM_ID"].unique()
 
-    # Filter to only teams playing today
     players = players[players["TEAM_ID"].isin(teams_today)]
 
-    # Remove manually marked OUT players
     if OUT_PLAYERS:
         players = players[~players["PLAYER_NAME"].isin(OUT_PLAYERS)]
 
-    # ---- Create Functional Role ----
     players = players.copy()
 
+    # ---- Assign Functional Role ----
     def assign_role(row):
-        if row["AST"] >= 5:
-            return "Guard"
-        elif row["REB"] >= 8:
+        if row["REB"] >= 8:
             return "Big"
+        elif row["AST"] >= 5:
+            return "Guard"
         else:
             return "Wing"
 
     players["ROLE"] = players.apply(assign_role, axis=1)
 
-    # ---- League averages by role ----
-    league_role_avg_pts = players.groupby("ROLE")["PTS"].mean().to_dict()
+    # ---- League Environment Averages ----
+    league_avg_pace = defenses["PACE"].mean()
+    league_avg_fga = defenses["FGA"].mean()
+    league_avg_fg3a = defenses["FG3A"].mean()
 
     for team_id in teams_today:
 
         team_players = players[players["TEAM_ID"] == team_id]
-
-        # Rotation filter
         team_players = team_players[team_players["MIN"] >= 22]
 
         if team_players.empty:
             continue
 
-        # Opportunity score
         team_players["OPPORTUNITY_SCORE"] = (
             team_players["USG_PCT"] * team_players["MIN"]
         )
@@ -196,12 +193,21 @@ def calculate_projections(players, defenses, matchups):
             .head(2)
         )
 
-        # Opponent
         opp_team_id = matchups[
             matchups["TEAM_ID"] == team_id
         ]["OPP_TEAM_ID"].values[0]
 
-        opp_players = players[players["TEAM_ID"] == opp_team_id]
+        team_def = defenses[defenses["TEAM_ID"] == team_id]
+        opp_def = defenses[defenses["TEAM_ID"] == opp_team_id]
+
+        team_pace = team_def["PACE"].values[0]
+        opp_pace = opp_def["PACE"].values[0]
+
+        opp_fga = opp_def["FGA"].values[0]
+        opp_fg3a = opp_def["FG3A"].values[0]
+
+        pace_multiplier = ((team_pace + opp_pace) / 2) / league_avg_pace
+        volume_multiplier = opp_fga / league_avg_fga
 
         for _, player in top_two.iterrows():
 
@@ -215,31 +221,17 @@ def calculate_projections(players, defenses, matchups):
             ppm = points / minutes
             base_projection = ppm * minutes
 
-            # ---- Pace Only (remove defense from base) ----
-            team_def = defenses[defenses["TEAM_ID"] == team_id]
-            opp_def = defenses[defenses["TEAM_ID"] == opp_team_id]
+            projected_points = base_projection
 
-            team_pace = team_def["PACE"].values[0]
-            opp_pace = opp_def["PACE"].values[0]
-            league_avg_pace = defenses["PACE"].mean()
+            # ---- Environment Layer ----
+            environment_multiplier = pace_multiplier * volume_multiplier
 
-            pace_multiplier = ((team_pace + opp_pace) / 2) / league_avg_pace
+            # Guards benefit more from perimeter volume
+            if role == "Guard":
+                perimeter_multiplier = opp_fg3a / league_avg_fg3a
+                environment_multiplier *= perimeter_multiplier
 
-            projected_points = base_projection * pace_multiplier
-
-            # ---- Role Weakness Factor ----
-            opp_role_pts_allowed = opp_players[
-                opp_players["ROLE"] == role
-            ]["PTS"].mean()
-
-            league_role_pts = league_role_avg_pts.get(role, 1)
-
-            if league_role_pts == 0:
-                weakness_factor = 1
-            else:
-                weakness_factor = opp_role_pts_allowed / league_role_pts
-
-            mismatch_score = projected_points * weakness_factor
+            mismatch_score = projected_points * environment_multiplier
 
             results.append({
                 "Player": player["PLAYER_NAME"],
