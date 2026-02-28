@@ -75,7 +75,7 @@ from nba_api.stats.endpoints import commonplayerinfo
 
 def get_player_stats():
 
-    # --- Base stats (PTS, MIN, GP) ---
+    # --- Base stats (PTS, MIN, GP, AST, REB, etc.) ---
     base = leaguedashplayerstats.LeagueDashPlayerStats(
         season=SEASON,
         season_type_all_star=SEASON_TYPE,
@@ -93,44 +93,14 @@ def get_player_stats():
         timeout=60
     ).get_data_frames()[0]
 
-    # Merge USG_PCT
+    # Merge USG_PCT into base stats
     players = base.merge(
         advanced[["PLAYER_ID", "USG_PCT"]],
         on="PLAYER_ID",
         how="left"
     )
 
-    # --- Pull Positions ---
-    positions = []
-
-    for player_id in players["PLAYER_ID"].unique():
-        try:
-            info = commonplayerinfo.CommonPlayerInfo(
-                player_id=player_id,
-                timeout=30
-            ).get_data_frames()[0]
-
-            positions.append({
-                "PLAYER_ID": player_id,
-                "POSITION": info["POSITION"].values[0]
-            })
-
-        except:
-            continue
-
-    position_df = pd.DataFrame(positions)
-
-    players = players.merge(
-        position_df,
-        on="PLAYER_ID",
-        how="left"
-    )
-
-    print("PLAYER COLUMNS AFTER POSITION MERGE:")
-    print(players.columns)
-
     return players
-
 def get_team_defense():
     teams = leaguedashteamstats.LeagueDashTeamStats(
         season=SEASON,
