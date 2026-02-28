@@ -129,51 +129,55 @@ def calculate_projections(players, defenses, matchups):
     if OUT_PLAYERS:
         players = players[~players["PLAYER_NAME"].isin(OUT_PLAYERS)]
 
+    # ---- Create Functional Role ----
+    players = players.copy()
+
+    def assign_role(row):
+        if row["AST"] >= 5:
+            return "Guard"
+        elif row["REB"] >= 8:
+            return "Big"
+        else:
+            return "Wing"
+
+    players["ROLE"] = players.apply(assign_role, axis=1)
+
+    # ---- League averages by role ----
+    league_role_avg_pts = players.groupby("ROLE")["PTS"].mean().to_dict()
+
     for team_id in teams_today:
 
         team_players = players[players["TEAM_ID"] == team_id]
 
-        # Rotation filter (real players only)
+        # Rotation filter
         team_players = team_players[team_players["MIN"] >= 22]
 
         if team_players.empty:
             continue
 
-        # Opportunity score (usage × minutes)
-        team_players = team_players.copy()
+        # Opportunity score
         team_players["OPPORTUNITY_SCORE"] = (
             team_players["USG_PCT"] * team_players["MIN"]
         )
 
-        # Select top 2 offensive engines per team
         top_two = (
             team_players
             .sort_values("OPPORTUNITY_SCORE", ascending=False)
             .head(2)
         )
 
-        # Get opponent
+        # Opponent
         opp_team_id = matchups[
             matchups["TEAM_ID"] == team_id
         ]["OPP_TEAM_ID"].values[0]
 
-        team_def = defenses[defenses["TEAM_ID"] == team_id]
-        opp_def = defenses[defenses["TEAM_ID"] == opp_team_id]
-
-        if team_def.empty or opp_def.empty:
-            continue
-
-        team_pace = team_def["PACE"].values[0]
-        opp_pace = opp_def["PACE"].values[0]
-        opp_def_rating = opp_def["DEF_RATING"].values[0]
-
-        league_avg_def = defenses["DEF_RATING"].mean()
-        league_avg_pace = defenses["PACE"].mean()
+        opp_players = players[players["TEAM_ID"] == opp_team_id]
 
         for _, player in top_two.iterrows():
 
             minutes = player["MIN"]
             points = player["PTS"]
+            role = player["ROLE"]
 
             if minutes == 0:
                 continue
@@ -181,13 +185,30 @@ def calculate_projections(players, defenses, matchups):
             ppm = points / minutes
             base_projection = ppm * minutes
 
+            # ---- Pace Only (remove defense from base) ----
+            team_def = defenses[defenses["TEAM_ID"] == team_id]
+            opp_def = defenses[defenses["TEAM_ID"] == opp_team_id]
+
+            team_pace = team_def["PACE"].values[0]
+            opp_pace = opp_def["PACE"].values[0]
+            league_avg_pace = defenses["PACE"].mean()
+
             pace_multiplier = ((team_pace + opp_pace) / 2) / league_avg_pace
-            defense_multiplier = league_avg_def / opp_def_rating
 
-            projected_points = base_projection * pace_multiplier * defense_multiplier
+            projected_points = base_projection * pace_multiplier
 
-            # --- Defensive Weakness Layer ---
-            weakness_factor = opp_def_rating / league_avg_def
+            # ---- Role Weakness Factor ----
+            opp_role_pts_allowed = opp_players[
+                opp_players["ROLE"] == role
+            ]["PTS"].mean()
+
+            league_role_pts = league_role_avg_pts.get(role, 1)
+
+            if league_role_pts == 0:
+                weakness_factor = 1
+            else:
+                weakness_factor = opp_role_pts_allowed / league_role_pts
+
             mismatch_score = projected_points * weakness_factor
 
             results.append({
@@ -195,10 +216,10 @@ def calculate_projections(players, defenses, matchups):
                 "Projected_Points": round(projected_points, 1),
                 "Minutes": round(minutes, 1),
                 "USG_PCT": player["USG_PCT"],
+                "Role": role,
                 "Mismatch_Score": round(mismatch_score, 2)
             })
 
-    # Rank by mismatch score instead of raw projection
     final_df = (
         pd.DataFrame(results)
         .sort_values("Mismatch_Score", ascending=False)
